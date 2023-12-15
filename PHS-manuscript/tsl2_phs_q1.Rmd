@@ -1,0 +1,238 @@
+---
+title: "TSL2 Hypothesis 1"
+author: "Alexandra G. Mitchell and Francesca Fardo"
+date: "28/02/2022"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+# Load required packages
+if (!require("pacman")) install.packages("pacman")
+  pacman::p_load(DHARMa, lme4, lmerTest, tidyverse, rcompanion, Rmisc, emmeans)
+```
+
+# Read data from cortex and select data for analysis
+```{r}
+# read in data
+path <- getwd() #make sure set to current folder
+tsl_file <- file.path("data", "anonymised_tsl2_208.csv")
+
+# load all data file
+if (file.exists(tsl_file)){
+  tsl2 <- read.csv(tsl_file)
+  } else {
+    print('Data file does not exist, check data is in current directory.')
+  }
+```
+
+# Zscore function
+```{r}
+calc_z <- function (value) {
+  z_score <- (value - mean(value))/sd(value)
+}
+```
+
+# Calculate average tsl2 thresholds, number of PHS per participant and define PHS responders
+The experimental design includes two experimental factors:
+(1) Instruction (2 levels: detect or pain). Participants were instructed to press a button as soon as they perceived a new thermal sensation or a new painful sensation following an auditory cue.
+(2) Baseline (3 levels: 32, 38 and 44). Cooling of the skin started at 32, 38 or 44 Celsius degrees. The auditory cue was always presented at 32 Celsius degrees. 
+
+The order of the conditions was fixed across participant and was the following
+(1) task = tsl2, instruction = detect, baseline = 32 
+(2) task = tsl2, instruction = detect, baseline = 38 
+(3) task = tsl2, instruction = detect, baseline = 44 
+(4) task = tsl2, instruction = pain, baseline = 32 
+(5) task = tsl2, instruction = pain, baseline = 38 
+(6) task = tsl2, instruction = pain, baseline = 44 
+
+For each condition, participants completed 6 trials. The first 3 trials were meant to demonstrate the task. The analyses only include the last 3 trials of each condition.
+
+```{r}
+# Select trials for analysis
+df1 <- tsl2 %>% 
+  filter(task == "tsl2" & trials_to_keep == 1) %>% 
+  dplyr::rename(subject = exp_id)
+
+# Average TSL2 threshold (i.e. average temperature for the detection of a new thermal change or a painful sensation)
+tsl2_threshold <- aggregate(df1$threshold, 
+                            by = list(subject = df1$subject, 
+                                      baseline = df1$baseline, 
+                                      instruction = df1$instruction), 
+                            FUN = mean)
+
+# Count of paradoxical heat sensations per participants (i.e., number of cooling trials perceived as warm, hot or painfully hot)
+phs_count <- aggregate(df1$phs, by = list(subject = df1$subject, 
+                                         baseline = df1$baseline, 
+                                         instruction = df1$instruction), 
+                       FUN = sum)
+
+# Define PHS responders (i.e., 0 = all cooling trials perceived as cold, 1 = at least one cooling trial misperceived as warm, hot or painfully hot) for each condition
+phs_01 <- as.numeric(phs_count$x != 0)
+
+# Create new dataframe for further analyses
+df <- cbind(tsl2_threshold, phs = phs_count$x, phs_01)
+names(df)[names(df) == 'x'] <- 'threshold' # rename column from x to avg_threshold
+df$baseline <- as.numeric(df$baseline) # define baseline as double
+write.csv(df, file.path("data", "summary_tsl2_208.csv"), row.names = FALSE)
+df
+```
+
+# Define the total number of PHS responders and trials
+
+```{r}
+# Calculate the total number of PHS responders per condition
+df_phs <- aggregate(df$phs_01, 
+                    by = list(baseline = df$baseline, 
+                              instruction = df$instruction), 
+                    FUN = sum)
+names(df_phs)[names(df_phs) == 'x'] <- 'N_phs_responders' # rename column
+
+# Calculate the total number of PHS trials per condition
+N_phs_trials <- aggregate(df$phs, 
+                          by = list(baseline = df$baseline, 
+                                    instruction = df$instruction), 
+                          FUN = sum)
+
+# Create new dataframe
+df_phs <- cbind(df_phs, N_phs_trials = N_phs_trials$x)
+df_phs
+```
+
+# Define function to perform McNemar's test and calculate effect size (Cohen's g))
+Results can be double checked with an online calculator (e.g., https://www.graphpad.com/quickcalcs/McNemar1.cfm)
+```{r}
+phs_mcnemar_stats <- function(temp1, temp2, instr1, instr2)
+{ #Subset data for the two conditions
+  df1 <- subset(df, baseline == temp1 & instruction == instr1)
+  df2 <- subset(df, baseline == temp2 & instruction == instr2)
+  
+  # Extract PHS response vector
+  phs_df1 <- df1$phs_01
+  phs_df2 <- df2$phs_01
+  
+  # Compute contingency table counts
+  yy <- sum(phs_df1 == 1 & phs_df2 == 1)
+  yn <- sum(phs_df1 == 1 & phs_df2 == 0)
+  ny <- sum(phs_df1 == 0 & phs_df2 == 1)
+  nn <- sum(phs_df1 == 0 & phs_df2 == 0)
+  
+  # Create a contingency table
+  phs_comparison <- matrix(c(yy, yn, ny, nn),
+                           nrow = 2,
+                           dimnames = list("temp1" = c("phs_yes", "phs_no"),
+                                           "temp2" = c("phs_yes", "phs_no")))
+                      
+  # Perform McNemar's test and compute effect size (Cohen's g)
+  phs_stats <- mcnemar.test(phs_comparison)
+  phs_cohenG <- cohenG(phs_comparison) # OR = odds ratio,  g = Cohen’s g (effect size estimates)
+  
+  # Return results
+  results=list(phs_stats,phs_cohenG)
+  return(results)
+}
+```
+
+# PHS prevalence with starting temperature
+Compare the number of PHS responders between conditions
+```{r, warning = FALSE}
+# Innocuous PHS comparisons
+res1 <- phs_mcnemar_stats(38,32,"detect","detect")
+res2 <- phs_mcnemar_stats(44,32,"detect","detect")
+res3 <- phs_mcnemar_stats(44,38,"detect","detect")
+
+# Noxious PHS comparisons
+res4 <- phs_mcnemar_stats(38,32,"pain", "pain")
+res5 <- phs_mcnemar_stats(44,32,"pain", "pain")
+res6 <- phs_mcnemar_stats(44,38,"pain", "pain")
+
+# Innocuous vs. noxious PHS comparisons
+res7 <- phs_mcnemar_stats(32,32,"detect","pain")
+res8 <- phs_mcnemar_stats(38,38,"detect","pain")
+res9 <- phs_mcnemar_stats(44,44,"detect","pain")
+
+# Combine the results into a data frame
+results <- data.frame(
+  Comparison = c("Innoc 32 vs 38", "Innoc 32 vs 44", "Innoc 38 vs 44",
+                 "Nox 32 vs 38", "Nox 32 vs 44", "Nox 38 vs 44",
+                 "Innoc vs Nox (32)", "Innoc vs Nox (38)", "Innoc vs Nox (44)"),
+  
+  McNemar_chi_squared = round(c(res1[[1]]$statistic, res2[[1]]$statistic, res3[[1]]$statistic,
+                                res4[[1]]$statistic, res5[[1]]$statistic, res6[[1]]$statistic,
+                                res7[[1]]$statistic, res8[[1]]$statistic, res9[[1]]$statistic), 3),
+  
+  McNemar_p_value = round(c(res1[[1]]$p.value, res2[[1]]$p.value, res3[[1]]$p.value,
+                            res4[[1]]$p.value, res5[[1]]$p.value, res6[[1]]$p.value,
+                            res7[[1]]$p.value, res8[[1]]$p.value, res9[[1]]$p.value), 3),
+  
+  OddsR = round(c(res1[[2]]$Global.statistics$OR, res2[[2]]$Global.statistics$OR, 
+                   res3[[2]]$Global.statistics$OR,res4[[2]]$Global.statistics$OR, 
+                   res5[[2]]$Global.statistics$OR, res6[[2]]$Global.statistics$OR,
+                   res7[[2]]$Global.statistics$OR, res8[[2]]$Global.statistics$OR, 
+                   res9[[2]]$Global.statistics$OR), 3)
+)
+
+# Print the table of results
+print(results)
+
+```
+
+# Normality assumptions of data - for modelling
+
+# PHS rate with starting temperature
+Poisson models to assess the relationship between PHS number (rate) and starting temp
+```{r}
+#df$phs <- as.numeric(as.character(df$phs)) #double check it is numeric
+df1$baseline <- as.factor(df1$baseline)
+df1$trial_z <- calc_z(df1$trial) #trial zscore
+df1$subject <- as.factor(df1$subject)
+df1$instruction <- as.factor(df1$instruction)
+
+
+# phs by contrast and instruction
+m.phs1 <- lme4::glmer(as.factor(phs) ~ baseline * instruction + (1|subject),
+                     data = df1,
+                     family = 'binomial')
+                     #family = poisson(link = "log"))
+summary(m.phs1)
+
+or.1 <- tidy(m.phs1, conf.int=TRUE, 
+               exponentiate=TRUE, effects="fixed")
+or.1
+
+# phs by contrast and instruction including trial
+# trial makes very little difference here
+m.phs2 <- lme4::glmer(as.factor(phs) ~ baseline * instruction + trial_z +
+                       (1|subject),
+                     data = df1,
+                     family = 'binomial')
+                     #family = poisson(link = "log"))
+summary(m.phs2)
+
+or.2 <- tidy(m.phs2, conf.int=TRUE, 
+               exponentiate=TRUE, effects="fixed")
+or.2
+
+# model comparison
+anova(m.phs1, m.phs2)
+```
+ 
+# Post hoc analysis of regression model
+```{r}
+phoc <- emmeans(m.phs1, ~ baseline * instruction)
+phoc
+
+pw <- pairs(phoc, simple = 'baseline')
+pw
+
+# effectsizes are inverselog OR, calculate OR for each effect
+# not sure where to access the stat in the data-frame so do this manually for now (not ideal)
+inn3238 <- inv.logit(-.573)
+inn3244 <- inv.logit(-1.62)
+inn3844 <- inv.logit(-1.07)
+nox3238 <- inv.logit(.364)
+nox3244 <- inv.logit(.759)
+nox3844 <- inv.logit(.394)
+```
+
