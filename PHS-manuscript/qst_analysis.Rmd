@@ -1,0 +1,164 @@
+---
+title: "QST analysis"
+author: "A.G. Mitchell"
+date: "2023-12-14"
+output: pdf_document
+---
+
+NOTE: THE DATA USED IN THIS ANALYSES ARE NOT ANONYMISED AS THEY ARE STILL LINKED TO ONGOING RESEARCH PROJECTS WITHIN THE SKULDNET CONSORTIUM. THEREFORE, THE QST THRESHOLDS ARE NOT PUBLICLY AVAILABLE. WE WILL MAKE THIS DATA AVAILABLE AS SOON AS WE CAN ANONYMISE ALL DATA ASSOCIATED WITH THESE THRESHOLDS.
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+if (!require("pacman")) install.packages("pacman")
+  pacman::p_load(boot, broom.mixed, caret, cluster, factoextra, ggeffects, 
+                 gghalves, ggpol, ggpubr, groupdata2, lme4, lmerTest, 
+                 RColorBrewer, rcompanion, 
+                 reshape2, Rmisc, ROCR, rsample, tidyverse, wesanderson
+                 )
+```
+
+# zscore function
+```{r}
+calc_z <- function (value) {
+  z_score <- (value - mean(value))/sd(value)
+}
+```
+
+```{r}
+# directory
+datPath <- '/Users/au706616/Documents/Experiments/PHS-SKULDNET/'
+# load file
+all_file <- file.path(datPath, "data", "skuldnet_all_results.csv")
+# load qst data file - NOT AVAILABLE ONLINE
+if (file.exists(all_file)){
+  all_dat <- read.csv(all_file)
+  } else {
+    print('Data file does not exist, check data is in current directory.')
+  }
+
+# model data
+con_file <- file.path(datPath, "data", "model_contrast_data.csv")
+# load data file
+if (file.exists(con_file)){
+  df_con <- read.csv(con_file)
+  } else {
+    print('Data file does not exist, check data is in current directory.')
+  }
+
+dat_file <- file.path(datPath, "data", "allsub_tsl2_208.csv")
+# load data file
+if (file.exists(dat_file)){
+  tsl2 <- read.csv(dat_file)
+  } else {
+    print('Data file does not exist, check data is in current directory.')
+  }
+```
+
+QST time :) 
+# Load and organise QST data
+```{r qst}
+df_qst <- all_dat %>% 
+  rename(subject = exp_id) %>% 
+  filter(task == 'qst' & trials_to_keep == 0) %>% 
+  filter(subject != 40) %>% 
+  select(c(subject, task, instruction, quality, baseline, threshold)) %>% 
+  mutate(difference = threshold - 32) #recalculate difference between threshold and beep temp
+
+## is there a way of investigating whether phs 1/0 is related to pattern of QST response
+# not TSL thresholds
+# is this a sensible thing to include?
+qst_wide <- df_qst %>% 
+  pivot_wider(id_cols = c(subject), names_from = c(instruction, quality),
+              values_from = c(threshold, difference))
+
+# tsl2 filter
+tsl2 <- tsl2 %>% 
+  filter(task == "tsl2" & trials_to_keep == 1) 
+
+# Count of paradoxical heat sensations per participants (i.e., number of cooling trials perceived as warm, hot or painfully hot)
+phs_count <- aggregate(tsl2$phs, 
+                       by = list(
+                         subject = tsl2$exp_id, 
+                         baseline = tsl2$baseline, 
+                         instruction = tsl2$instruction), 
+                       FUN = sum)
+phs_count <- phs_count %>% 
+  rename(phs = x)
+
+# then add phs
+# first need to aggregate phs count into single participant columns
+phs <- aggregate(phs~subject, sum, data = phs_count)
+phs$phs_01 <- as.numeric(phs$phs != 0)
+qst_wide <- merge(qst_wide, phs, by = 'subject')
+# now the data is ready to compare qst results with phs
+
+# save data
+write.csv(qst_wide, file.path(datPath, "data", "qst_data.csv"), row.names = FALSE)
+```
+
+# Table of QST results by PHS
+```{r}
+qst_dat <- qst_wide
+
+# lengthen
+qst <- qst_dat %>% 
+  select(-c(phs, phs_01, difference_detect_cold,
+            difference_pain_cold, difference_detect_warm,
+            difference_pain_warm))
+phs <- qst_dat %>% 
+  select(subject, phs_01)
+
+qst <- melt(qst, value.name = 'threshold', id = c('subject'))
+
+# then add phs back
+qst <- merge(qst, phs, by = 'subject')
+
+# average data
+qst_sum <- aggregate(threshold~phs_01*variable, mean, data = qst)
+qst_sd <- aggregate(threshold~phs_01*variable, sd, data = qst)
+qst_sum <- merge(qst_sum, qst_sd, by = c('phs_01','variable'))
+# rename
+qst_sum <- qst_sum %>% 
+  rename(mean = threshold.x,
+         sd = threshold.y) %>% 
+  pivot_wider(names_from = 'phs_01',
+              values_from = c('mean','sd'))
+qst_sum
+```
+
+# Include a model with qst data
+```{r mod_qst}
+# create data-frame with single value per participant at baseline = 32 
+# 1 - ID, 2 - detect threshold, 3 - pain threshold, 4 - cold qst, 5 - warm qst, 6 - PHS bin
+# extract baseline == 32 from PHS detect and pain
+df_con$baseline <- as.factor(df_con$baseline)
+
+base_dat <- df_con %>% 
+  filter(baseline == '32')
+
+# merge with qst
+qst_mod <- merge(qst_dat, base_dat, by = c('subject','phs_01'))
+
+# then, z score everything
+qst_mod <- qst_mod %>% 
+  mutate(threshold_detect_coldz = calc_z(threshold_detect_cold),
+         threshold_detect_warmz = calc_z(threshold_detect_warm),
+         threshold_pain_coldz = calc_z(threshold_pain_cold),
+         threshold_pain_warmz = calc_z(threshold_pain_warm),
+         threshold_detectz = calc_z(threshold_detect),
+         threshold_painz = calc_z(threshold_pain))
+```
+
+# QST model
+```{r qst_mod}
+model.qst <- lme4::glmer(phs_01~threshold_detect_coldz + threshold_detect_warmz +
+                           threshold_pain_coldz + threshold_pain_warmz + (1|subject),
+                  data = qst_mod,
+                  family = 'binomial')
+
+summary(model.qst)
+# save qst model
+saveRDS(model.qst, file.path(datPath, 'results','h2_qst-mod.RData'))
+```
+

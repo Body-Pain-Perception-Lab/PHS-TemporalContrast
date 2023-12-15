@@ -1,0 +1,264 @@
+---
+title: "TSL2 Hypothesis 2"
+author: "A.G. Mitchell"
+date: '2022-07-12'
+output: pdf_document
+---
+
+```{r setup, include=FALSE, message=FALSE}
+# this is getting unweildy, simplify (when you have the time)
+knitr::opts_chunk$set(echo = TRUE)
+
+# check for pacman package and install if not found
+if (!require("pacman")) install.packages("pacman")
+  pacman::p_load(boot, broom.mixed, caret, cluster, factoextra, ggeffects, 
+                 gghalves, ggpol, ggpubr, groupdata2, lme4, lmerTest, 
+                 RColorBrewer, rcompanion, 
+                 reshape2, Rmisc, ROCR, rsample, tidyverse, wesanderson
+                 )
+```
+
+# Read data from cortex and select data for analysis
+```{r data}
+# read in data
+tsl_file <- file.path("data", "anonymised_tsl2_208.csv")
+sum_file <- file.path("data", "summary_tsl2_208.csv")
+
+# load all data file
+if (file.exists(tsl_file)){
+  tsl2 <- read.csv(tsl_file)
+  tsl2 <- tsl2 %>% 
+    filter(trials_to_keep == 1)
+  } else {
+    print('Data file does not exist, check data is in current directory.')
+  }
+# load data summary file
+if (file.exists(sum_file)){
+  df <- read.csv(sum_file)
+  } else {
+    print('Data file does not exist, check data is in current directory if not, run tsl2_phs_q1.Rmd first')
+  }
+```
+
+# zscore function
+```{r}
+calc_z <- function (value) {
+  z_score <- (value - mean(value))/sd(value)
+}
+```
+
+# Question 2: pain threshold and PHS count
+Investigating whether pain thresholds affect the presence of PHS for both detection and pain conditions. Do this using a mixed effects logistic regression to model the binary outcome of PHS with a random effect of participant, given the individual differences in threshold
+
+# PHS responders
+Organise PHS responders from summary data
+```{r tsl2}
+# extract detection trial only
+phs_detect <- df %>% 
+  filter(instruction == 'detect') %>% 
+  dplyr::rename(phs_detect_bin = phs_01,
+         phs_detect = phs)
+# extract pain trials only and then add phs_detect to these
+phs_pain <- df %>% 
+  filter(instruction == 'pain') %>% 
+  dplyr::rename(phs_pain_bin = phs_01,
+         phs_pain = phs)
+# add detection columns to PHS pain
+phs_pain1 <- phs_detect %>% 
+  left_join(phs_pain, phs_detect, by = c('subject','baseline')) %>%
+  select(-c(instruction.y,threshold.y)) %>% 
+  dplyr::rename(threshold = threshold.x,
+                instruction = instruction.x)
+
+# create large data_frame where only phs during detection is considered
+df_detect <- phs_pain1 %>% 
+  select(-c(phs_pain, phs_pain_bin))
+df_detect <- rbind(df_detect, phs_detect)
+```
+
+# Summary statistics - TSL2
+```{r sum}
+N = 208
+# detect by phs
+tsl2_mean <- aggregate(threshold~instruction*baseline*phs_01, mean, data = df)
+tsl2_median <- aggregate(threshold~instruction*baseline*phs_01, median, data = df)
+tsl2_sd <- aggregate(threshold~instruction*baseline*phs_01, sd, data = df)
+tsl2_stderr <- tsl2_sd$threshold/sqrt(N)# number of participants
+tsl2_ci <- aggregate(threshold~instruction*baseline*phs_01, CI, data = df)
+# data frame
+tsl2_stats <- data.frame(baseline = tsl2_mean$baseline, phs_detect = tsl2_mean$phs_01, 
+                         mean = tsl2_mean$threshold, median = tsl2_median$threshold, 
+                         sd = tsl2_sd$threshold, 
+                         stderr = tsl2_stderr, tsl2_ci$threshold, 
+                         instruction = tsl2_median$instruction)
+# rename CI labels
+names(tsl2_stats)[names(tsl2_stats) == 'upper'] <- 'ci_upper'
+names(tsl2_stats)[names(tsl2_stats) == 'mean.1'] <- 'ci_mean'
+names(tsl2_stats)[names(tsl2_stats) == 'lower'] <- 'ci_lower'
+# calculate ci
+tsl2_stats$ci <- tsl2_stats$ci_upper - tsl2_stats$ci_lower
+
+# all thresholds (regardless of phs)
+tsl2_mean <- aggregate(threshold~baseline*instruction, mean, data = df)
+tsl2_median <- aggregate(threshold~baseline*instruction, median, data = df)
+tsl2_sd <- aggregate(threshold~baseline*instruction, sd, data = df)
+tsl2_stderr <- tsl2_sd$threshold/sqrt(N)# number of participants
+tsl2_ci <- aggregate(threshold~baseline*instruction, CI, data = df)
+# data frame
+tsl2_all_stats <- data.frame(baseline = tsl2_mean$baseline, instruction = tsl2_mean$instruction, 
+                         mean = tsl2_mean$threshold, median = tsl2_median$threshold, 
+                         sd = tsl2_sd$threshold, stderr = tsl2_stderr, tsl2_ci$threshold)
+# rename CI labels
+names(tsl2_all_stats)[names(tsl2_all_stats) == 'upper'] <- 'ci_upper'
+names(tsl2_all_stats)[names(tsl2_all_stats) == 'mean.1'] <- 'ci_mean'
+names(tsl2_all_stats)[names(tsl2_all_stats) == 'lower'] <- 'ci_lower'
+# calculate ci
+tsl2_all_stats$ci <- tsl2_all_stats$ci_upper - tsl2_all_stats$ci_lower
+```
+
+# Save all descriptives in results
+```{r}
+write.csv(tsl2_stats, file.path("results", "phs_threshold_stats.csv"), row.names = FALSE)
+tsl2_stats
+write.csv(tsl2_all_stats, file.path("results", "all_threshold_stats.csv"), row.names = FALSE)
+tsl2_all_stats
+```
+
+# Stats for the increase in TSL temperatures with starting temperature
+# This does not include PHS
+```{r thresholds}
+tsl2$trial_z <- calc_z(tsl2$trial)
+# innocuous TSL thresholds
+m.detect <- lmer(threshold ~ as.factor(baseline) + trial_z + (1|exp_id),
+                        data = tsl2 %>% filter(instruction == 'detect'))
+
+summary(m.detect, ddf = "Satterthwaite")
+
+# noxious TSL thresholds
+m.pain <- lmer(threshold ~ as.factor(baseline) + trial_z + (1|exp_id),
+                      data = tsl2 %>% filter(instruction == 'pain'))
+
+summary(m.pain, ddf = "Satterthwaite")
+```
+
+# Threshold logisitic regression
+# Prep data
+```{r}
+# first, correct all pain thresholds < 0 to 0
+df2 <- tsl2 %>% 
+  dplyr::rename(subject = exp_id)# new data-frame
+
+# create average threshold
+avg_threshold <- aggregate(threshold~subject*baseline*instruction, mean, data = df2)
+names(avg_threshold)[4] <- 'avg_threshold'
+
+df2 <- merge(df2, avg_threshold, by = c('subject','baseline','instruction'), all.x = TRUE)
+
+# split up pain and detection data sets - is instruction*threshold interaction on phs purely driven by instruction?
+df_pain <- df2 %>% 
+  filter(instruction == 'pain')
+df_detect <- df2 %>% 
+  filter(instruction == 'detect')
+# change phs to a factor 
+df_pain$phs <- as.factor(df_pain$phs)
+df_detect$phs <- as.factor(df_detect$phs)
+
+# add pain threshold to detect data
+#pain_thresh <- df_pain[, c(1,2,4,7,8)]
+pain_thresh <- df_pain %>% 
+  select(c(subject,baseline,instruction,threshold,avg_threshold))
+df_dp <- merge(df_detect, pain_thresh, by = c('subject', 'baseline'))
+# rename thresholds
+df_dp<- df_dp %>% 
+  dplyr::rename(
+    detect_threshold = threshold.x,
+    pain_threshold = threshold.y,
+    avg_detect_threshold = avg_threshold.x,
+    avg_pain_threshold = avg_threshold.y
+  )
+
+df_dp$phs <- as.factor(df_dp$phs)
+df_dp$baseline <- as.factor(df_dp$baseline)
+df_dp$subject <- as.numeric(as.character(df_dp$subject))
+# remove unnecessary data
+df_dp <- df_dp %>% 
+  dplyr::select(c(subject,baseline,gender,trial_z,detect_threshold,phs,avg_detect_threshold,
+           pain_threshold,avg_pain_threshold))
+
+# also normalise in original dataset
+df_dp <- df_dp %>% 
+  mutate(detectz_threshold = calc_z(detect_threshold),
+         avg_painz_threshold = calc_z(avg_pain_threshold),
+         subject = as.factor(subject))
+
+# density plots
+ggplot(df_dp) +
+  geom_density(aes(detect_threshold), colour = 'red') +
+  geom_density(aes(detectz_threshold))
+ggplot(df_dp) +
+  geom_density(aes(avg_pain_threshold), colour = 'red') +
+  geom_density(aes(avg_painz_threshold)) 
+
+# Create the same data-frame for noxious trials
+detect_thresh <- df_detect %>% 
+  select(c(subject,baseline,instruction,threshold,avg_threshold))
+df_pd <- merge(df_pain, detect_thresh, by = c('subject', 'baseline'))
+# rename thresholds
+df_pd<- df_pd %>% 
+  dplyr::rename(
+    detect_threshold = threshold.y,
+    pain_threshold = threshold.x,
+    avg_detect_threshold = avg_threshold.y,
+    avg_pain_threshold = avg_threshold.x
+  )
+
+df_pd$phs <- as.factor(df_pd$phs)
+df_pd$baseline <- as.factor(df_pd$baseline)
+df_pd$subject <- as.numeric(as.character(df_pd$subject))
+# remove unnecessary data
+df_pd <- df_pd %>% 
+   select(c(subject,baseline,gender,trial_z,detect_threshold,phs,avg_detect_threshold,
+           pain_threshold,avg_pain_threshold))
+
+
+# also normalise in original dataset
+df_pd <- df_pd %>% 
+  mutate(avg_detectz_threshold = calc_z(avg_detect_threshold),
+         painz_threshold = calc_z(pain_threshold))
+
+# save both data-sets
+write.csv(df_dp, file.path("data", "model_innoc_data.csv"), row.names = FALSE)
+write.csv(df_pd, file.path("data", "model_nox_data.csv"), row.names = FALSE)
+```
+
+# Then run model :)
+```{r}
+# more complex model with phs, baseline and thermal thresholds (model of interest)
+model.thr <- lme4::glmer(phs~detectz_threshold * avg_painz_threshold + (1|subject),
+                 data = df_dp,
+                family = 'binomial') #, weights = train_dp$weights)
+
+summary(model.thr)
+
+# calculating odds ratios
+# need to find a way of getting CIs from this
+or.dp2 <- tidy(model.thr, conf.int=TRUE, 
+               exponentiate=TRUE, effects="fixed")
+or.dp2
+```
+
+# Linear models with added age and gender as predictors
+```{r}
+# innocuous TSL thresholds
+m.detect1 <- lmer(threshold ~ as.factor(baseline) + age + as.factor(gender) + trial_z + (1|exp_id),
+                        data = tsl2 %>% filter(instruction == 'detect'))
+
+summary(m.detect1, ddf = "Satterthwaite")
+
+# noxious TSL thresholds
+m.pain1 <- lmer(threshold ~ as.factor(baseline) + age + as.factor(gender) + trial_z + (1|exp_id),
+                      data = tsl2 %>% filter(instruction == 'pain'))
+
+summary(m.pain1, ddf = "Satterthwaite")
+```
+

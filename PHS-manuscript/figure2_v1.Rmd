@@ -1,0 +1,361 @@
+---
+title: "Figure 2"
+author: "Alexandra G. Mitchell and Francesca Fardo"
+date: "28/02/2022"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+# Load required packages
+if (!require("pacman")) install.packages("pacman")
+  pacman::p_load(gghalves, ggpol, ggpubr, tidyverse,
+                 gridExtra, wesanderson, RColorBrewer, Rmisc)
+```
+ 
+##### FIGURES
+```{r}
+# threshold summary data
+filename <- file.path('data', 'summary_tsl2_208.csv')
+if (file.exists(filename)){
+  df <- read.csv(filename)
+} else {
+  print('Data file does not exist, run tsl2_phs_q2.Rmd first')
+}
+
+# model data 
+conN_file <- file.path('data', 'model_contrast_data.csv')
+if (file.exists(conN_file)){
+  df_conN <- read.csv(conN_file)
+} else {
+  print('Data file does not exist, run tsl2_phs_q3.Rmd first')
+}
+
+# constrast summary data
+sum_file <- file.path('data', 'con_summary_208.csv')
+if (file.exists(sum_file)){
+  con_cond <- read.csv(sum_file)
+} else {
+  print('Data file does not exist, run tsl2_phs_q3.Rmd first')
+}
+
+# statistics
+stats_file <- file.path('results', 'phs_contrast_stats.csv')
+if (file.exists(stats_file)){
+  con_stats <- read.csv(stats_file)
+} else {
+  print('Data file does not exist, run tsl2_phs_q3.Rmd first')
+}
+
+# Define colour palettes 
+blue <- brewer.pal(9, "Blues")
+color_light <- blue[4]
+color_dark <- blue[7]
+greys9  <- brewer.pal(9, "Greys")
+blues5 <- brewer.pal(5, "Blues")
+greens9  <- brewer.pal(9, "Greens")
+orans9  <- brewer.pal(9, "Oranges")
+dj2 <- wes_palettes$Darjeeling2
+
+# Define figure features
+axistext <- 10
+axistitle <- 10
+title <- 12
+legend <- 9
+
+# Define plot nudges
+nudge1 <- 0.20
+nudge2 <- 0.30
+nudge3 <- -0.12
+nudge4 <- 0.12
+nudge5 <- -.20
+nudge6 <- -.3
+```
+
+# Panel 1: Threshold by starting temperature
+```{r panel1}
+# Select data for histogram
+df_phs_fig <- df %>% 
+  dplyr::filter(phs != 0)
+
+# Rename instruction
+df_phs_fig[which(df_phs_fig$instruction == "detect"), ]$instruction <- "Innocuous"
+df_phs_fig[which(df_phs_fig$instruction == "pain"), ]$instruction <- "Noxious"
+
+# Create plot
+p1 <- ggplot(data = df_phs_fig, 
+             aes(x = baseline, 
+                 color = instruction, 
+                 fill = forcats::fct_rev(factor(phs)))) +
+  geom_histogram(width = 3, stat = "count", position = "stack", alpha = .8) +
+  facet_wrap(~ instruction, scales = 'free') +
+  scale_fill_manual(values = c(orans9[9],orans9[6],orans9[3])) + 
+  scale_color_manual(values = c('black', 'black')) + 
+  labs(x=NULL, 
+       y="PHS-responders") +
+  guides(fill=guide_legend(title="Number of PHS")) +
+  theme_classic() +
+  theme(panel.grid.minor = element_blank(), # text size for labels on the x-axis
+        strip.text = element_text(size = 10), # text size and color on facet_wrap        
+        #strip.background =element_rect(fill=c(blue5[5],blue5[5])),
+        axis.text = element_text(size = axistext),
+        axis.title = element_text(size = axistitle),
+        legend.position = 'bottom',
+        #legend.background = element_rect(colour = "gray", fill = "white", linetype="solid"),
+        legend.text = element_text(size = legend),
+        legend.title = element_text(size = legend)) +
+  guides(color = FALSE)  +
+  scale_x_continuous(breaks = c(44,38,32), labels=c("High", "Medium", "Low"), ) +#, limits = c(44,38,32)) +
+  ylim(0,60)
+
+p1 <- annotate_figure(p1, top = text_grob('A. Effect of Contrast on PHS',
+                      size = 11, face = 'bold'))
+
+p1
+
+ggsave(here::here("figures", "F2_panel1.png"), plot = p1, 
+       device = NULL, width = 8, height = 5, dpi = 600)
+```
+# Panel 2: TSL thresholds 
+Plot the change in pain and detection threshold over starting temperature using rainclouds
+```{r panel3}
+plot_df <- df %>% 
+  mutate(baseline = replace(baseline, baseline == 32, 1)) %>% 
+  mutate(baseline = replace(baseline, baseline == 38, 2)) %>% 
+  mutate(baseline = replace(baseline, baseline == 44, 3))
+# Rename instruction
+plot_df[which(plot_df$instruction == "detect"), ]$instruction <- "Innocuous"
+plot_df[which(plot_df$instruction == "pain"), ]$instruction <- "Noxious"
+
+# Jitter
+plot_df$xj <- jitter(plot_df$baseline, amount = .05)
+
+# for this plot, remove trials that are 0 or < 0, for illustrative purposes
+plot_df <- plot_df %>% 
+  dplyr::filter(threshold > 0.1)
+```
+
+# Calculate group-level summary of average innocuous and noxious TSL thresholds for rainclouds
+```{r panel2_stats}
+# Define total number of participants
+N = length(unique(df$subject))
+
+# Define summary stats to compute
+my_funcs <- list(
+  mean = mean, 
+  median = median, 
+  sd = sd, 
+  stderr = function(x) sd(x)/sqrt(N),
+  ci_upper = function(x) CI(x, ci = 0.95)[1],
+  ci_mean = function(x) CI(x, ci = 0.95)[2],
+  ci_lower = function(x) CI(x, ci = 0.95)[3])
+
+# Get group-level summary stats
+tsl2_group_stats <- plot_df %>%
+  group_by(baseline, instruction) %>%
+  dplyr::reframe(across(threshold, my_funcs)) %>%
+  dplyr::rename(mean = threshold_mean,
+                median = threshold_median,
+                sd = threshold_sd,
+                stderr = threshold_stderr,
+                ci_upper = threshold_ci_upper,
+                ci_lower = threshold_ci_lower,
+                ci_mean = threshold_ci_mean) %>%
+  mutate(ci_diff = ci_upper - ci_lower,
+         ci = ci_upper - ci_mean)
+
+tsl2_group_stats
+
+# Recode baseline in group-level summary
+tsl2_group_stats <- tsl2_group_stats %>% 
+  mutate(baseline = replace(baseline, baseline == 32, 1)) %>% 
+  mutate(baseline = replace(baseline, baseline == 38, 2)) %>% 
+  mutate(baseline = replace(baseline, baseline == 44, 3))
+# Rename instruction
+tsl2_group_stats[which(tsl2_group_stats$instruction == "detect"), ]$instruction <- "Innocuous"
+tsl2_group_stats[which(tsl2_group_stats$instruction == "pain"), ]$instruction <- "Noxious"
+
+```
+
+```{r panel3}
+# Plot 2
+p3 <- ggplot(data = plot_df, 
+             mapping = aes(x = baseline, y = threshold,
+                           group = instruction, colour = instruction, fill = instruction)) +
+  # Add individual points
+  geom_point(aes(x = xj), shape = 21, size = .8, alpha = .6,
+             position = position_nudge(x = nudge3)) +
+  facet_wrap(~instruction, scales = 'free') +
+  geom_boxplot(
+    data = plot_df %>% 
+      dplyr::filter(baseline == 1), outlier.color = NA,
+    position = position_nudge(x = nudge4), 
+    width = .18,  notch = TRUE, lwd = .5, fatten = 1) +
+  geom_boxplot(
+    data = plot_df %>% 
+      dplyr::filter(baseline == 2), outlier.color = NA,
+    position = position_nudge(x = nudge4), 
+    width = .18,  notch = TRUE, lwd = .5, fatten = 1) +
+  geom_boxplot(
+    data = plot_df %>% 
+      dplyr::filter(baseline == 3), outlier.color = NA,
+    position = position_nudge(x = nudge4), 
+    width = .18,  notch = TRUE, lwd = .5, fatten = 1) +
+  
+  # Add a line connecting the two means (Innocuous TSL)
+  geom_line(data = tsl2_group_stats,
+            aes(x = c(baseline + nudge4), y = median), size = .5) +
+  
+  # Define additional settings
+  scale_x_continuous(breaks = c(1, 2, 3), labels=c("Low", "Medium", "High"), ) +
+  scale_colour_manual(labels = c("Innocuous", "Noxious"), values=c(blues9[7],blues9[8])) +
+  scale_fill_manual(labels = c("Innocuous", "Noxious"), values=c(blues9[2],blues9[3])) +
+  labs(y = "TSL Threshold (ºC)", x = NULL) +
+  theme_classic() +
+  theme(legend.position = "none",
+        panel.grid.minor = element_blank(), # text size for labels on the x-axis
+        strip.text = element_text(size = 10), # text size and color on facet_wrap 
+        axis.text = element_text(size = axistext),
+        axis.title = element_text(size = axistitle),
+        legend.text = element_text(size = legend),
+        legend.title = element_blank()) # remove legend
+
+
+# add title
+p3 <- annotate_figure(p3, top = text_grob('B. Individual TSL Thresholds',
+                      size = 11, face = 'bold'))
+
+p3
+
+#ggsave('Thresholds.png', p2, path = Apath, device = NULL, width = 7, height = 4.5, dpi = 1000)
+ggsave(here::here("figures", "F2_panel2.png"), plot = p3, 
+       device = NULL, width = 8, height = 5, dpi = 600)
+```
+
+
+
+# Make something similar for contrast
+# Contrast by PHS
+```{r}
+# calculate and add pain contrast into summary
+pain_con <- con_cond %>% 
+  dplyr::filter(instruction == 'pain') %>% 
+  dplyr::rename(TCFpain = TCF,
+                threshold_pain = threshold) %>% 
+  dplyr::select(c(subject,baseline,threshold_pain,TCFpain))
+  
+detect_con <- con_cond %>% 
+  dplyr::filter(instruction == 'detect') %>% 
+  dplyr::rename(TCFdetect = TCF,
+                threshold_detect = threshold)
+
+plot_con <- merge(detect_con, pain_con, by = c('subject','baseline'))
+
+# Recode baseline
+plot_con <- plot_con %>% 
+  mutate(baseline = replace(baseline, baseline == 32, 1)) %>% 
+  mutate(baseline = replace(baseline, baseline == 38, 2)) %>% 
+  mutate(baseline = replace(baseline, baseline == 44, 3)) %>% 
+  select(-c(instruction)) %>% 
+  # lengthen data-frame by TCF to facet wrap
+  pivot_longer(cols = c(TCFdetect, TCFpain), names_to = 'instruction', values_to = 'TCF')
+
+# instruction names
+plot_con[which(plot_con$instruction == "TCFdetect"), ]$instruction <- "Innocuous"
+plot_con[which(plot_con$instruction == "TCFpain"), ]$instruction <- "Noxious"
+
+# Jitter
+plot_con$xj <- jitter(plot_con$baseline, amount = .04)
+plot_con$phs_01 <- as.factor(plot_con$phs_01)
+#plot_con$baseline <- as.numeric(as.character(plot_con$baseline))
+```
+
+# Contrast summary statistics
+```{r}
+# Get group-level summary stats
+con_group_stats <- plot_con %>%
+  group_by(baseline, instruction, phs_01) %>%
+  dplyr::reframe(across(TCF, my_funcs)) %>%
+  dplyr::rename(mean = TCF_mean,
+                median = TCF_median,
+                sd = TCF_sd,
+                stderr = TCF_stderr,
+                ci_upper = TCF_ci_upper,
+                ci_lower = TCF_ci_lower,
+                ci_mean = TCF_ci_mean) %>%
+  mutate(ci_diff = ci_upper - ci_lower,
+         ci = ci_upper - ci_mean)
+
+con_group_stats
+```
+
+# Panel 3:  phs detection thresolds
+```{r panel3}
+# function for making labels 1dp
+scaleFUN <- function(x) sprintf("%.1f", x)
+
+p4 <- ggplot(data = plot_con, 
+             mapping = aes(x = baseline, 
+                           y = TCF, 
+                           group = as.factor(phs_01), 
+                           fill = as.factor(phs_01), 
+                           colour = as.factor(phs_01),
+                           alpha = as.factor(instruction))) +
+  facet_wrap(~instruction, scales = 'free') +
+  geom_boxplot(
+    data = plot_con %>% 
+      filter(baseline == 1),
+    position = position_dodge(.5), width = .28, notch = FALSE,
+    lwd = .4, fatten = .8, outlier.shape = 21, outlier.size = .7) +
+  geom_boxplot(
+    data = plot_con %>% 
+      filter(baseline == 2),
+    position = position_dodge(.5), width = .28, notch = FALSE,
+    lwd = .4, fatten = .8, outlier.shape = 21, outlier.size = .7) +
+  geom_boxplot(
+    data = plot_con %>% 
+      filter(baseline == 3),
+    position = position_dodge(.5), width = .28, notch = FALSE,
+    lwd = .4, fatten = .8, outlier.shape = 21, outlier.size = .7) +
+  scale_fill_manual(labels = c("No PHS", "PHS"), values=c(blues9[3],orans9[3])) +
+  scale_colour_manual(labels = c("No PHS", "PHS"), values=c(blues9[7],orans9[7])) +
+  scale_alpha_manual(values = c(.5,.9), guide = 'none') +
+  # Define additional settings
+  scale_x_continuous(breaks=c(1,2,3), labels = c('Low','Medium','High')) +
+  scale_y_continuous(labels=scaleFUN) +
+  labs(y = "Contrast (Tmax - Tmin)/50",
+       x = "Contrast Condition") +
+  #ylim(0,0.55) +
+  theme_classic() +
+  theme(legend.position = 'bottom',
+        legend.title = element_blank(),
+        panel.grid.minor = element_blank(), # text size for labels on the x-axis
+        strip.text = element_text(size = 10), # text size and color on facet_wrap
+        plot.title = element_text(hjust = 0.5, size = title),
+        axis.text = element_text(size = axistext),
+        axis.title = element_text(size = axistitle),
+        legend.text = element_text(size = legend)
+        )
+
+# add title
+p4 <- annotate_figure(p4, top = text_grob('C. Thermal Contrast by PHS',
+                      size = 11, face = 'bold'))
+p4
+ggsave(here::here("figures", "F2_panel3.png"), plot = p4, 
+       device = NULL, width = 9, height = 4.5, dpi = 600)
+
+```
+
+# Put all panels together
+```{r figure1}
+# setting placement of figures
+F2 <- ggarrange(p1, NA, p3, NA, p4,
+                 ncol = 1, nrow = 5,
+                 heights = c(.95,.07,.78,.07,1))
+
+F2
+
+ggsave(file.path("figures", "Figure2.png"), 
+       plot = F2, device = NULL, width = 3.5, height = 9, dpi = 600)
+```

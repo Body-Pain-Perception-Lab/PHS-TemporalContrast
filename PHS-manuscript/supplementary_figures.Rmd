@@ -1,0 +1,416 @@
+---
+title: "Supplementary Figures"
+author: "A.G. Mitchell & F. Fardo"
+date: "2023-06-08"
+output: pdf_document
+---
+
+# Libraries and set up
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+# Load required packages
+if (!require("pacman")) install.packages("pacman")
+  pacman::p_load(gghalves, ggpol, ggpubr, gridExtra, wesanderson, RColorBrewer)
+```
+
+# Load data etc
+```{r}
+# threshold summary data
+filename <- file.path('data', 'summary_tsl2_208.csv')
+all_file <- file.path("data", "anonymised_tsl2_208.csv")
+con_file <- file.path("data", "model_contrast_data.csv")
+
+# load all data
+if (file.exists(all_file)){
+  tsl2 <- read.csv(all_file)
+} else {
+  print('Data file does not exist, run tsl2_phs_q2.Rmd first')
+}
+# load summary data
+if (file.exists(filename)){
+  df <- read.csv(filename)
+} else {
+  print('Data file does not exist, run tsl2_phs_q2.Rmd first')
+}
+# load qst data file
+if (file.exists(qst_file)){
+  qst_dat <- read.csv(qst_file)
+  } else {
+    print('Data file does not exist, check data is in current directory.')
+  }
+# load TCF contrast data
+if (file.exists(con_file)){
+  df_conN <- read.csv(con_file)
+  } else {
+    print('Data file does not exist, check data is in current directory.')
+  }
+
+# Define colour palettes 
+blue <- brewer.pal(9, "Blues")
+color_light <- blue[4]
+color_dark <- blue[7]
+greys9  <- brewer.pal(9, "Greys")
+blues5 <- brewer.pal(5, "Blues")
+greens9  <- brewer.pal(9, "Greens")
+orans9 <- brewer.pal(9, "Oranges")
+reds9 <- brewer.pal(9, "Reds")
+dj2 <- wes_palettes$Darjeeling2
+
+# Define figure features
+axistext <- 12
+axistitle <- 14
+title <- 14
+legend <- 12
+
+# Define plot nudges
+nudge1 <- 0.20
+nudge2 <- 0.30
+nudge3 <- -0.15
+nudge4 <- 0.15
+```
+
+Figure S1
+# Create a histogram of responses
+```{r}
+# Recode baseline in subject-level summary
+df <- df %>% 
+  mutate(baseline = replace(baseline, baseline == 32, 1)) %>% 
+  mutate(baseline = replace(baseline, baseline == 38, 2)) %>% 
+  mutate(baseline = replace(baseline, baseline == 44, 3))
+# Rename instruction
+df[which(df$instruction == "detect"), ]$instruction <- "Innocuous"
+df[which(df$instruction == "pain"), ]$instruction <- "Noxious"
+
+# histogram
+p2 <- ggplot(data = df, aes(colour = instruction, fill = instruction)) +
+  geom_histogram(aes(threshold), bins = 20) +
+  facet_wrap(~instruction, scales = 'free_x') +
+  labs(y = "Frequency", x = "TSL Threshold (ºC)") +
+  scale_colour_manual(labels = c("Innocuous", "Noxious"), values=c(blues9[7],blues9[9])) +
+  scale_fill_manual(labels = c("Innocuous", "Noxious"), values=c(blues9[3],blues9[5])) +
+  theme_classic() +
+  theme(legend.position = "none",
+        panel.grid.minor = element_blank(), # text size for labels on the x-axis
+        strip.text = element_text(size = 12), # text size and color on facet_wrap 
+        title = element_text(size = title),
+        axis.text = element_text(size = axistext),
+        axis.title = element_text(size = axistitle),
+        legend.text = element_text(size = legend),
+        legend.title = element_blank()) # remove legend
+p2
+```
+
+# TSL thresholds figure
+# Calculate group-level summary of average innocuous and noxious TSL thresholds for rainclouds
+```{r panel2_stats}
+
+# Define total number of participants
+N = length(unique(df$subject))
+
+# Define summary stats to compute
+my_funcs <- list(
+  mean = mean, 
+  median = median, 
+  sd = sd, 
+  stderr = function(x) sd(x)/sqrt(N), 
+  ci_upper = function(x) CI(x, ci = 0.95)[1],
+  ci_mean = function(x) CI(x, ci = 0.95)[2],
+  ci_lower = function(x) CI(x, ci = 0.95)[3])
+
+# Get group-level summary stats
+tsl2_group_stats <- df %>%
+  group_by(baseline, instruction) %>%
+  dplyr::reframe(across(threshold, my_funcs)) %>%
+  dplyr::rename(mean = threshold_mean,
+                median = threshold_median,
+                sd = threshold_sd,
+                stderr = threshold_stderr,
+                ci_upper = threshold_ci_upper,
+                ci_lower = threshold_ci_lower,
+                ci_mean = threshold_ci_mean) %>%
+  mutate(ci_diff = ci_upper - ci_lower)
+
+tsl2_group_stats
+```
+
+# Thresholds by PHS - with box plots and points
+```{r}
+# Extract detection trials only and rename columns
+phs_detect <- df %>% 
+  filter(instruction == 'detect') %>% 
+  dplyr::rename(phs_detect_bin = phs_01,
+         phs_detect = phs)
+
+# Extract pain trials only and rename columns
+phs_pain <- df %>% 
+  filter(instruction == 'pain') %>% 
+  dplyr::rename(phs_pain_bin = phs_01,
+         phs_pain = phs)
+
+# Merge
+df_detect <- phs_detect %>% 
+  select(-instruction) %>% 
+  left_join(phs_pain, phs_detect, by = c('subject','baseline')) %>% 
+  dplyr::rename(pain_threshold = threshold.y,
+                detect_threshold = threshold.x)
+
+# Recode baseline
+df_innoc <- df_detect %>% 
+  mutate(baseline = replace(baseline, baseline == 32, 1)) %>% 
+  mutate(baseline = replace(baseline, baseline == 38, 2)) %>% 
+  mutate(baseline = replace(baseline, baseline == 44, 3))
+```
+
+Figure S2
+# Threshold plot
+```{r panel3}
+# Jitter
+df_innoc$xj <- jitter(df_innoc$baseline, amount = .02)
+
+# Plot 3:  phs detection thresolds
+f5c <- ggplot(data = df_innoc, 
+             mapping = aes(x = as.factor(baseline), 
+                           y = detect_threshold, 
+                           group = phs_detect_bin, 
+                           fill = as.factor(phs_detect_bin), 
+                           colour = as.factor(phs_detect_bin))) +
+  
+  # Add box plots - no PHS
+  geom_boxjitter(
+      data = df_innoc %>% 
+      filter(phs_detect_bin == 0, baseline == 1), 
+      aes(x = baseline, y = detect_threshold), 
+      position = position_nudge(x = nudge3), width = .2,
+      errorbar.length = .2, jitter.shape = 21, jitter.size = 2,
+      outlier.shape = NA, errorbar.draw = TRUE, lwd = 0.7) +
+  geom_boxjitter(
+      data = df_innoc %>% 
+      filter(phs_detect_bin == 0, baseline == 2), 
+      aes(x = baseline, y = detect_threshold), 
+      position = position_nudge(x = nudge3), width = .2,
+      errorbar.length = .2, jitter.shape = 21, jitter.size = 2,
+      outlier.shape = NA, errorbar.draw = TRUE, lwd = 0.7) +
+   geom_boxjitter(
+      data = df_innoc %>% 
+      filter(phs_detect_bin == 0, baseline == 3), 
+      aes(x = baseline, y = detect_threshold), 
+      position = position_nudge(x = nudge3), width = .2,
+      errorbar.length = .2, jitter.shape = 21, jitter.size = 2,
+      outlier.shape = NA, errorbar.draw = TRUE, lwd = 0.7) +
+  
+  # PHS
+  geom_boxjitter(
+      data = df_innoc %>% 
+      filter(phs_detect_bin == 1, baseline == 1), 
+      aes(x = baseline, y = detect_threshold), 
+      position = position_nudge(x = nudge4), width = .2,
+      errorbar.length = .2, jitter.shape = 21, jitter.size = 2,
+      outlier.shape = NA, errorbar.draw = TRUE, lwd = 0.7) +
+  geom_boxjitter(
+      data = df_innoc %>% 
+      filter(phs_detect_bin == 1, baseline == 2), 
+      aes(x = baseline, y = detect_threshold), 
+      position = position_nudge(x = nudge4), width = .2,
+      errorbar.length = .2, jitter.shape = 21, jitter.size = 2,
+      outlier.shape = NA, errorbar.draw = TRUE, lwd = 0.7) +
+  geom_boxjitter(
+      data = df_innoc %>% 
+      filter(phs_detect_bin == 1, baseline == 3), 
+      aes(x = baseline, y = detect_threshold), 
+      position = position_nudge(x = nudge4), width = .2,
+      errorbar.length = .2, jitter.shape = 21, jitter.size = 2,
+      outlier.shape = NA, errorbar.draw = TRUE, lwd = 0.7) +
+  scale_fill_manual(labels = c("No PHS", "PHS"), values=c(blues9[1],orans9[1])) +
+  scale_colour_manual(labels = c("No PHS", "PHS"), values=c(blues9[6],orans9[6])) +
+  # Define additional settings
+  scale_x_continuous(breaks=c(1,2,3), labels = c('32','38','44')) +
+  labs(title = 'Innocuous',
+       y = "TSL Threshold (ºC)",
+       x = "Starting temperature (ºC)") +
+  ylim(15,32) +
+  theme_classic() +
+  theme(legend.position = 'bottom',
+        legend.title = element_blank(),
+        plot.title = element_text(hjust = 0.5, size = title),
+        axis.text = element_text(size = axistext),
+        axis.title = element_text(size = axistitle),
+        legend.text = element_text(size = legend)
+        )
+f5c
+
+# plot phs pain thresolds
+f5d <- ggplot(data = df_innoc, 
+             mapping = aes(x = as.factor(baseline), 
+                           y = pain_threshold, 
+                           group = phs_detect_bin, 
+                           fill = as.factor(phs_detect_bin), 
+                           colour = as.factor(phs_detect_bin))) +
+  
+  # Add box plots - no PHS
+  geom_boxjitter(
+      data = df_innoc %>% 
+      filter(phs_detect_bin == 0, baseline == 1), 
+      aes(x = baseline, y = pain_threshold), 
+      position = position_nudge(x = nudge3), width = .2,
+      errorbar.length = .2, jitter.shape = 21, jitter.size = 2,
+      outlier.shape = NA, errorbar.draw = TRUE, lwd = 0.7) +
+  geom_boxjitter(
+      data = df_innoc %>% 
+      filter(phs_detect_bin == 0, baseline == 2), 
+      aes(x = baseline, y = pain_threshold), 
+      position = position_nudge(x = nudge3), width = .2,
+      errorbar.length = .2, jitter.shape = 21, jitter.size = 2,
+      outlier.shape = NA, errorbar.draw = TRUE, lwd = 0.7) +
+   geom_boxjitter(
+      data = df_innoc %>% 
+      filter(phs_detect_bin == 0, baseline == 3), 
+      aes(x = baseline, y = pain_threshold), 
+      position = position_nudge(x = nudge3), width = .2,
+      errorbar.length = .2, jitter.shape = 21, jitter.size = 2,
+      outlier.shape = NA, errorbar.draw = TRUE, lwd = 0.7) +
+  
+  # PHS
+  geom_boxjitter(
+      data = df_innoc %>% 
+      filter(phs_detect_bin == 1, baseline == 1), 
+      aes(x = baseline, y = pain_threshold), 
+      position = position_nudge(x = nudge4), width = .2,
+      errorbar.length = .2, jitter.shape = 21, jitter.size = 2,
+      outlier.shape = NA, errorbar.draw = TRUE, lwd = 0.7) +
+  geom_boxjitter(
+      data = df_innoc %>% 
+      filter(phs_detect_bin == 1, baseline == 2), 
+      aes(x = baseline, y = pain_threshold), 
+      position = position_nudge(x = nudge4), width = .2,
+      errorbar.length = .2, jitter.shape = 21, jitter.size = 2,
+      outlier.shape = NA, errorbar.draw = TRUE, lwd = 0.7) +
+   geom_boxjitter(
+      data = df_innoc %>% 
+      filter(phs_detect_bin == 1, baseline == 3), 
+      aes(x = baseline, y = pain_threshold), 
+      position = position_nudge(x = nudge4), width = .2,
+      errorbar.length = .2, jitter.shape = 21, jitter.size = 2,
+      outlier.shape = NA, errorbar.draw = TRUE, lwd = 0.7) +
+  scale_fill_manual(labels = c("No PHS", "PHS"), values=c(blues9[3],orans9[3])) +
+  scale_colour_manual(labels = c("No PHS", "PHS"), values=c(blues9[8],orans9[8])) +
+  
+  # Define additional settings
+  scale_x_continuous(breaks=c(1,2,3), labels = c('32','38','44')) +
+ labs( title = 'Noxious', 
+       y = "",
+       x = "Starting temperature (ºC)") +
+  #ylim(15,32) +
+  theme_classic() +
+  theme(legend.position = 'bottom',
+        legend.background = element_rect(colour = "gray", fill = "white", linetype="solid"),
+        legend.title = element_blank(),
+        plot.title = element_text(hjust = 0.5, size = title),
+        axis.text = element_text(size = axistext),
+        axis.title = element_text(size = axistitle),
+        legend.text = element_text(size = legend)
+        )
+f5d
+
+p3 <- ggarrange(f5c, f5d,
+                ncol = 2, nrow = 1, 
+                common.legend = TRUE,
+                legend = 'bottom')
+
+# add title
+p3 <- annotate_figure(p3, top = text_grob('TSL Thresholds by PHS',
+                      size = 14, face = 'bold'))
+
+p3
+
+# save
+ggsave('FigureS1.png', plot = p3, device = NULL, path = file.path('figures'), 
+       width = 8, height = 5, dpi = 600)
+```
+# Distribution figures
+```{r}
+df_conN <- df_conN %>% 
+  dplyr::mutate(baseline= factor(baseline, labels = c('low','medium','high')))
+# Distribution of TCF and log(TCF) for comparison
+# density plots and distributions
+
+# innocuous TCF
+ggplot(data = df_conN) +
+  geom_density(aes(TCFdetect, group = baseline, colour = baseline),
+               linewidth = .8) +
+  #facet_wrap(~baseline) +
+  labs(x = 'Innocuous TCF',
+       y = 'Density') +
+  scale_color_manual(values = c(orans9[3],orans9[6],orans9[9])) +
+  theme_bw() +
+  theme(axis.text = element_text(size = axistext),
+        axis.title = element_text(size = axistitle),
+        legend.text = element_text(size = legend),
+        legend.title = element_blank(),
+        legend.position = 'none') -> iTCF_density
+
+# noxious TCF
+ggplot(data = df_conN) +
+  geom_density(aes(TCFpain, group = baseline, colour = baseline),
+               linewidth = .8) +
+  #facet_wrap(~baseline) +
+  labs(x = 'Noxious TCF',
+       y = '') +
+  scale_color_manual(values = c(reds9[3],reds9[6],reds9[9])) +
+  theme_bw() +
+  theme(axis.text = element_text(size = axistext),
+        axis.title = element_text(size = axistitle),
+        legend.text = element_text(size = legend),
+        legend.title = element_blank(),
+        legend.position = 'none') -> nTCF_density
+
+# combine the two
+TCFdensity <- ggarrange(iTCF_density, nTCF_density,
+                        ncol = 2, nrow = 1,
+                        labels = c('A.','B.'))
+
+# log innocuous TCF
+ggplot(data = df_conN) +
+  geom_density(aes(log_TCFdetect, group = baseline, colour = baseline),
+               linewidth = .8) +
+  #facet_wrap(~baseline) +
+  labs(x = 'log10 Innocuous TCF',
+       y = 'Density') +
+  scale_color_manual(values = c(orans9[3],orans9[6],orans9[9])) +
+  theme_bw() +
+  theme(axis.text = element_text(size = axistext),
+        axis.title = element_text(size = axistitle),
+        legend.text = element_text(size = legend),
+        legend.title = element_blank()) -> logiTCF_density
+
+# log noxious TCF
+ggplot(data = df_conN) +
+  geom_density(aes(log_TCFpain, group = baseline, colour = baseline),
+               linewidth = .8) +
+  #facet_wrap(~baseline) +
+  labs(x = 'log10 Noxious TCF',
+       y = '') +
+  scale_color_manual(values = c(orans9[3],orans9[6],orans9[9])) +
+  theme_bw() +
+  theme(axis.text = element_text(size = axistext),
+        axis.title = element_text(size = axistitle),
+        legend.text = element_text(size = legend),
+        legend.title = element_blank()) -> lognTCF_density
+
+logTCFdensity <- ggarrange(logiTCF_density, lognTCF_density,
+                        ncol = 2, nrow = 1,
+                        labels = c('C.','D.'),
+                        common.legend = TRUE, legend = 'bottom')
+
+# finally combine the two
+density_plots <- ggarrange(TCFdensity, logTCFdensity,
+                           ncol = 1, nrow = 2,
+                           heights = c(.8,1))
+density_plots 
+
+ggsave('FigureS2.png', plot = density_plots, device = NULL, path = file.path('figures'), 
+       width = 8, height = 8, dpi = 600)
+```
+
+
+

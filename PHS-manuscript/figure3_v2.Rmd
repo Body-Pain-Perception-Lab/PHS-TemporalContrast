@@ -1,0 +1,522 @@
+---
+title: "Figure 3"
+author: "A.G. Mitchell & F. Fardo"
+date: "2023-05-02"
+output: pdf_document
+---
+
+NOTE: THE DATA FOR THE MODEL SIMULATIONS: m*-bootstrapAUCs.csv ARE TOO LARGE TO STORE ON GITHUB. 
+THEY ARE THEREFORE AVAILABLE FOR DOWNLOAD FROM THIS OSF LINK: [ADD]
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+# Load required packages
+if (!require("pacman")) install.packages("pacman")
+  pacman::p_load(cowplot, effects, gghalves, ggpol, ggpubr, gridExtra, wesanderson, 
+                 RColorBrewer, tidyverse)
+```
+
+A reminder of the models: 
+1: phs~baseline
+2: phs~TCFdetect
+3: phs~TCFpain
+4: phs~TCFdetect * TCFpain
+5: phs~TCFdetect * TCFnback
+6: phs~TCFdetect * TCFpain * TCFnback
+7: phs~threshold_detect * threshold_pain
+
+##### FIGURE 3 CODE
+# Define paths, load files and models
+# make sure models are in current working directory under a folder called results
+```{r}
+# load models
+m1_file <- file.path("results", "h3_mod1.RData")
+m2_file <- file.path("results", "h3_mod2.RData")
+m3_file <- file.path("results", "h3_mod3.RData")
+m4_file <- file.path("results", "h3_mod4.RData")
+m5_file <- file.path("results", "h3_mod5.RData")
+m6_file <- file.path("results", "h3_mod6.RData")
+m7_file <- file.path("results", "h3_mod7.RData")
+
+if (file.exists(m1_file)){
+  mod.m1 <- readRDS(m1_file)
+  mod.m2 <- readRDS(m2_file)
+  mod.m3 <- readRDS(m3_file)
+  mod.m4 <- readRDS(m4_file)
+  mod.m5 <- readRDS(m5_file)
+  mod.m6 <- readRDS(m6_file)
+  mod.m7 <- readRDS(m7_file)
+} else {
+  print('Models do not exist, run tsl2_phs_q3.Rmd and check current directory')
+}
+
+# load model fits
+m1_ROC_file <- file.path("results", "h3_model1_ROC.csv")
+m2_ROC_file <- file.path("results", "h3_model2_ROC.csv")
+m3_ROC_file <- file.path("results", "h3_model3_ROC.csv")
+m4_ROC_file <- file.path("results", "h3_model4_ROC.csv")
+m5_ROC_file <- file.path("results", "h3_model5_ROC.csv")
+m6_ROC_file <- file.path("results", "h3_model6_ROC.csv")
+m7_ROC_file <- file.path("results", "h3_model7_ROC.csv")
+if (file.exists(m1_ROC_file)){
+  m1_ROC <- read.csv(m1_ROC_file)
+  m2_ROC <- read.csv(m2_ROC_file)
+  m3_ROC <- read.csv(m3_ROC_file)
+  m4_ROC <- read.csv(m4_ROC_file)
+  m5_ROC <- read.csv(m5_ROC_file)
+  m6_ROC <- read.csv(m6_ROC_file)
+  m7_ROC <- read.csv(m7_ROC_file)
+} else {
+  print('Models ROCs do not exist, run tsl2_phs_q3.Rmd and check current directory')
+}
+
+# finally, load bootstrapped data
+  # location of .csv files (can get them from linked OSF page)
+Apath = '/Users/au706616/Documents/Experiments/PHS-SKULDNET/analyses/h3' 
+# filenames
+m1_bsfile <- file.path(Apath, 'm1-bootstrapAUCs.csv')
+m2_bsfile <- file.path(Apath, 'm2-bootstrapAUCs.csv')
+m3_bsfile <- file.path(Apath, 'm3-bootstrapAUCs.csv')
+m4_bsfile <- file.path(Apath, 'm4-bootstrapAUCs.csv')
+m5_bsfile <- file.path(Apath, 'm5-bootstrapAUCs.csv')
+m6_bsfile <- file.path(Apath, 'm6-bootstrapAUCs.csv')
+m7_bsfile <- file.path(Apath, 'm7-bootstrapAUCs.csv')
+  # load file
+if (file.exists(m1_bsfile)){
+  m1_bs_perf <- read.csv(m1_bsfile)
+  m2_bs_perf <- read.csv(m2_bsfile)
+  m3_bs_perf <- read.csv(m3_bsfile)
+  m4_bs_perf <- read.csv(m4_bsfile)
+  m5_bs_perf <- read.csv(m5_bsfile)
+  m6_bs_perf <- read.csv(m6_bsfile)
+  m7_bs_perf <- read.csv(m7_bsfile)
+} else {
+  print('Data files do not exist. They can be downloaded from:   https://osf.io/t3n8s/')
+}
+
+# finally, model data
+res_file <- file.path('data', 'model_contrast_data.csv')
+if (file.exists(res_file)){
+  df_conN <- read.csv(res_file)
+} else {
+  print('Data file does not exist, run tsl2_phs_q3.Rmd first')
+}
+```
+
+# Figure parameters
+```{r}
+# colour palettes etc
+greys9  <- brewer.pal(9, "Greys")
+blues5 <- brewer.pal(5, "Blues")
+grens9 <- brewer.pal(9, "Greens") 
+orans9 <- brewer.pal(9, "Oranges") 
+dj2 <- wes_palettes$Darjeeling2
+color_light <- blues9[4]
+color_dark <- blues9[7]
+
+# figure features
+axistext = 10
+axistitle = 12
+title = 12
+legend = 8
+# plot nudge
+nudge1 = 0.20
+nudge2 = 0.30
+nudge3 = -0.15
+nudge4 = 0.15
+```
+
+# FIGURE 3
+# Plotting the AUC and CIs from simulated data
+```{r}
+# calculate 95% ci quant val
+v = qnorm(.975)
+N = 208
+
+# first remove models with warnings - both data-frames
+# model 1
+#m1_bs_perf = m1_bs_perf[is.na(m1_bs_perf$warnings) ,]
+m1_bs_perf1 = m1_bs_perf[is.finite(m1_bs_perf$Cutoff) ,] # get rid of infinite values, for means
+# average AUC and confidence intervals - simple model
+m1_perf <- aggregate(Cutoff~model*Area_under_the_ROC_curve, 
+                      mean, data = m1_bs_perf1)
+# then calculate mean and CI of the boostrap
+m1_AUC_mean <- mean(m1_perf$Area_under_the_ROC_curve)
+m1_AUC_sd <- sd(m1_perf$Area_under_the_ROC_curve)
+# CI from SD and N
+m1_AUC_ci <- v*(m1_AUC_sd/sqrt(N))
+m1_AUC_CIs <- cbind((m1_AUC_mean - m1_AUC_ci), (m1_AUC_mean + m1_AUC_ci))
+
+# model 2
+#m2_bs_perf = m2_bs_perf[is.na(m2_bs_perf$warnings) ,]
+m2_bs_perf1 = m2_bs_perf[is.finite(m2_bs_perf$Cutoff) ,]
+# average AUC and confidence intervals 
+m2_perf <- aggregate(Cutoff~model*Area_under_the_ROC_curve, 
+                      mean, data = m2_bs_perf1)
+# then calculate mean and CI
+m2_AUC_mean <- mean(m2_perf$Area_under_the_ROC_curve)
+m2_AUC_sd <- sd(m2_perf$Area_under_the_ROC_curve)
+# CI from SD and N
+m2_AUC_ci <- v*(m2_AUC_sd/sqrt(N))
+m2_AUC_CIs <- cbind((m2_AUC_mean - m2_AUC_ci), (m2_AUC_mean + m2_AUC_ci))
+
+# model 3
+#m3_bs_perf = m3_bs_perf[is.na(m3_bs_perf$warnings) ,]
+m3_bs_perf1 = m3_bs_perf[is.finite(m3_bs_perf$Cutoff) ,]
+# average AUC and confidence intervals 
+m3_perf <- aggregate(Cutoff~model*Area_under_the_ROC_curve, 
+                      mean, data = m3_bs_perf1)
+# then calculate mean and CI
+m3_AUC_mean <- mean(m3_perf$Area_under_the_ROC_curve)
+m3_AUC_sd <- sd(m3_perf$Area_under_the_ROC_curve)
+# CI from SD and N
+m3_AUC_ci <- v*(m3_AUC_sd/sqrt(N))
+m3_AUC_CIs <- cbind((m3_AUC_mean - m3_AUC_ci), (m3_AUC_mean + m3_AUC_ci))
+
+# model 4
+#m4_bs_perf = m4_bs_perf[is.na(m4_bs_perf$warnings) ,]
+m4_bs_perf1 = m4_bs_perf[is.finite(m4_bs_perf$Cutoff) ,]
+# average AUC and confidence intervals 
+m4_perf <- aggregate(Cutoff~model*Area_under_the_ROC_curve, 
+                      mean, data = m4_bs_perf1)
+# then calculate mean and CI
+m4_AUC_mean <- mean(m4_perf$Area_under_the_ROC_curve)
+m4_AUC_sd <- sd(m4_perf$Area_under_the_ROC_curve)
+# CI from SD and N
+m4_AUC_ci <- v*(m4_AUC_sd/sqrt(N))
+m4_AUC_CIs <- cbind((m4_AUC_mean - m4_AUC_ci), (m4_AUC_mean + m4_AUC_ci))
+
+# model 5
+#m5_bs_perf = m5_bs_perf[is.na(m5_bs_perf$warnings) ,]
+m5_bs_perf1 = m5_bs_perf[is.finite(m5_bs_perf$Cutoff) ,]
+# average AUC and confidence intervals 
+m5_perf <- aggregate(Cutoff~model*Area_under_the_ROC_curve, 
+                      mean, data = m5_bs_perf1)
+# then calculate mean and CI
+m5_AUC_mean <- mean(m5_perf$Area_under_the_ROC_curve)
+m5_AUC_sd <- sd(m5_perf$Area_under_the_ROC_curve)
+# CI from SD and N
+m5_AUC_ci <- v*(m5_AUC_sd/sqrt(N))
+m5_AUC_CIs <- cbind((m5_AUC_mean - m5_AUC_ci), (m5_AUC_mean + m5_AUC_ci))
+
+# model 6
+#m6_bs_perf = m6_bs_perf[is.na(m6_bs_perf$warnings) ,]
+m6_bs_perf1 = m6_bs_perf[is.finite(m6_bs_perf$Cutoff) ,]
+# average AUC and confidence intervals 
+m6_perf <- aggregate(Cutoff~model*Area_under_the_ROC_curve, 
+                      mean, data = m6_bs_perf1)
+# then calculate mean and CI
+m6_AUC_mean <- mean(m6_perf$Area_under_the_ROC_curve)
+m6_AUC_sd <- sd(m6_perf$Area_under_the_ROC_curve)
+# CI from SD and N
+m6_AUC_ci <- v*(m6_AUC_sd/sqrt(N))
+m6_AUC_CIs <- cbind((m6_AUC_mean - m6_AUC_ci), (m6_AUC_mean + m6_AUC_ci))
+
+# model 6
+#m7_bs_perf = m7_bs_perf[is.na(m7_bs_perf$warnings) ,]
+m7_bs_perf1 = m7_bs_perf[is.finite(m7_bs_perf$Cutoff) ,]
+# average AUC and confidence intervals 
+m7_perf <- aggregate(Cutoff~model*Area_under_the_ROC_curve, 
+                      mean, data = m7_bs_perf1)
+# then calculate mean and CI
+m7_AUC_mean <- mean(m7_perf$Area_under_the_ROC_curve)
+m7_AUC_sd <- sd(m7_perf$Area_under_the_ROC_curve)
+# CI from SD and N
+m7_AUC_ci <- v*(m7_AUC_sd/sqrt(N))
+m7_AUC_CIs <- cbind((m7_AUC_mean - m7_AUC_ci), (m7_AUC_mean + m7_AUC_ci))
+
+# get all model AICs 
+aic_m1 <- AIC(logLik(mod.m1))
+aic_m2 <- AIC(logLik(mod.m2))
+aic_m3 <- AIC(logLik(mod.m3))
+aic_m4 <- AIC(logLik(mod.m4))
+aic_m5 <- AIC(logLik(mod.m5))
+aic_m6 <- AIC(logLik(mod.m6))
+aic_m7 <- AIC(logLik(mod.m7))
+```
+
+# Plot
+```{r}
+# function to round axes to 1dp
+scaleFUN <- function(x) sprintf("%.1f", x)
+# simple model
+m1ROC_plot <- ggplot() +
+  m1_bs_perf %>% 
+  geom_line(mapping = aes(x = False_positive_rate, y = True_positive_rate, 
+                          group = as.factor(model)),
+            alpha = 0.2, colour = "grey85") +
+  m1_ROC %>% 
+  geom_line(mapping = aes(x = False_positive_rate, y = True_positive_rate),
+            colour = dj2[1], size = 1.2) +
+  geom_abline(slope = 1, intercept = 0, linetype = "dotted", 
+              color = "grey50", size = 1) +
+  geom_text(aes(label = paste0("AUC = ",
+                               round(m1_ROC[1,4], 2), 
+                               ' [', round(m1_AUC_CIs[1], 2), 
+                               ', ', round(m1_AUC_CIs[2], 2), ']')), 
+            x=.66, y=.02, size = 3.5) +
+  geom_text(aes(label = paste0("AIC = ",
+                               round(aic_m1, 0))), 
+            x=.85, y=.13, size = 3.5) +
+  labs(x = 'False positive rate', y = 'True positive rate') +
+  scale_y_continuous(labels=scaleFUN) +
+  theme_classic() +
+  theme(axis.text = element_text(size=axistext),
+        axis.title = element_text(size=axistitle),
+        title = element_text(size=10)
+        )
+
+m4ROC_plot <- ggplot() +
+  m4_bs_perf %>% 
+  geom_line(mapping = aes(x = False_positive_rate, y = True_positive_rate, 
+                          group = as.factor(model)),
+            alpha = 0.2, colour = "grey85") +
+  m4_ROC %>% 
+  geom_line(mapping = aes(x = False_positive_rate, y = True_positive_rate),
+            colour = dj2[2], size = 1.2) +
+  geom_abline(slope = 1, intercept = 0, linetype = "dotted", 
+              color = "grey50", size = 1) +
+  geom_text(aes(label = paste0("AUC = ",
+                               round(m4_ROC[1,4], 2), 
+                               ' [', round(m4_AUC_CIs[1], 2), 
+                               ', ', round(m4_AUC_CIs[2], 2), ']')), 
+            x=.66, y=.02, size = 3.5) +
+  geom_text(aes(label = paste0("AIC = ",
+                               round(aic_m4, 0))), 
+            x=.85, y=.13, size = 3.5) +
+  labs(x = 'False positive rate', y = 'True positive rate') +
+  scale_y_continuous(labels=scaleFUN) +
+  theme_classic() +
+  theme(axis.text = element_text(size=axistext),
+        axis.title = element_text(size=axistitle),
+        title = element_text(size=10)
+        )
+
+m2ROC_plot <- ggplot() +
+  m2_bs_perf %>% 
+  geom_line(mapping = aes(x = False_positive_rate, y = True_positive_rate, 
+                          group = as.factor(model)),
+            alpha = 0.2, colour = "grey85") +
+  m2_ROC %>% 
+  geom_line(mapping = aes(x = False_positive_rate, y = True_positive_rate),
+            colour = dj2[3], size = 1.2) +
+  geom_abline(slope = 1, intercept = 0, linetype = "dotted", 
+              color = "grey50", size = 1) +
+  geom_text(aes(label = paste0("AUC = ",
+                               round(m2_ROC[1,4], 2), 
+                               ' [', round(m2_AUC_CIs[1], 2), 
+                               ', ', round(m2_AUC_CIs[2], 2), ']')), 
+            x=.66, y=.02, size = 3.5) +
+  geom_text(aes(label = paste0("AIC = ",
+                               round(aic_m2, 0))), 
+            x=.85, y=.13, size = 3.5) +
+  scale_y_continuous(labels=scaleFUN) +
+  labs(x = 'False positive rate', y = 'True positive rate') +
+  theme_classic() +
+  theme(axis.text = element_text(size=axistext),
+        axis.title = element_text(size=axistitle),
+        title = element_text(size=10)
+        )
+
+m3ROC_plot <- ggplot() +
+  m3_bs_perf %>% 
+  geom_line(mapping = aes(x = False_positive_rate, y = True_positive_rate, 
+                          group = as.factor(model)),
+            alpha = 0.2, colour = "grey85") +
+  m3_ROC %>% 
+  geom_line(mapping = aes(x = False_positive_rate, y = True_positive_rate),
+            colour = dj2[5], size = 1.2) +
+  geom_abline(slope = 1, intercept = 0, linetype = "dotted", 
+              color = "grey50", size = 1) +
+  geom_text(aes(label = paste0("AUC = ",
+                               round(m3_ROC[1,4], 2), 
+                               ' [', round(m3_AUC_CIs[1], 2), 
+                               ', ', round(m3_AUC_CIs[2], 2), ']')), 
+            x=.66, y=.02, size = 3.5) +
+  geom_text(aes(label = paste0("AIC = ",
+                               round(aic_m3, 0))), 
+            x=.85, y=.13, size = 3.5) +
+  scale_y_continuous(labels=scaleFUN) +
+  labs(x = 'False positive rate', y = 'True positive rate') +
+  theme_classic() +
+  theme(axis.text = element_text(size=axistext),
+        axis.title = element_text(size=axistitle),
+        title = element_text(size=10)
+        )
+```
+
+```{r}
+# Plot model comparisons
+plot_data <- rbind(m1_ROC, m4_ROC, m2_ROC,
+                   m3_ROC)
+model_order <- c('baseline', 'innocuous TCF \n* noxious TCF', 
+                 'innocuous TCF', 'noxious TCF')
+
+plot_data1 <- plot_data %>% 
+  arrange(factor(model, levels = model_order))
+plot_data1$model <- factor(plot_data$model, levels = model_order)
+
+ROCplot <- ggplot(plot_data1) +
+  geom_line(aes(False_positive_rate, True_positive_rate, colour = model), 
+                linewidth = 1.5) +
+  geom_abline(slope = 1, intercept = 0, linetype = "dotted", 
+              color = "gray50", linewidth = 1) +
+  scale_color_manual(values = dj2,
+                     labels = model_order) +
+  labs(x = '', 
+       y = '', 
+       title = 'Model comparison') + #labels removed to correspond with below plot
+  theme_classic() +
+  theme(legend.title = element_blank(),
+        legend.position = 'none',
+        axis.text = element_text(size=axistext),
+        axis.title = element_text(size=axistitle),
+        title = element_text(size=10)
+        )
+ROCplot
+```
+
+# Marginal effects of all 4 contrast models
+```{r}
+# plot the effects in the simple and complex (best fitting) model
+# re-run model, otherwise cannot get effects
+# factor baseline
+df_conN$baseline <- as.factor(df_conN$baseline)
+
+# model 1A
+eff1 <- ggeffects::ggeffect(mod.m1, 
+                           terms = c('baseline'))
+
+eff1_plot <- plot(eff1, ci = FALSE) + 
+  geom_point(size = 3, colour = dj2[1]) +
+  geom_errorbar(aes(ymin = conf.low, ymax = conf.high), 
+                size = 1, width = .3, colour = dj2[1]) +
+  labs(title = NULL,
+       y = 'Predicted PHS',
+       x = 'Contrast condition') +
+  #scale_y_continuous(breaks = c(0,.01,.02,.03,.04,.05,.06)) +
+  scale_x_continuous(breaks = c(32, 38, 44), labels = c('Low','Medium','High')) +
+  theme_classic() +
+  theme(axis.text = element_text(size = axistext),
+        axis.title = element_text(size = axistitle),
+        legend.title = element_text(size = legend),
+        legend.text = element_text(size = legend)
+        )
+eff1_plot
+```
+
+# Model 3A (full model)
+```{r}
+# model 3A
+eff2 <- ggeffects::ggeffect(mod.m4, 
+                           terms = c('log_TCFdetect','log_TCFpain'))
+
+eff2_plot <- plot(eff2, ci = FALSE) + 
+  geom_line(linewidth = 1.2) +
+  geom_ribbon(aes(ymin = conf.low, ymax = conf.high), alpha = .1, 
+              linewidth = .2) +
+  scale_color_manual('Nox. TCF', labels = c('-1SD','mean','+1SD'),
+                     values = c(blues9[9],blues9[7],blues9[5])) +
+  scale_fill_manual('Nox. TCF', labels = c('-1SD','mean','+1SD'),
+                    values = c(blues9[9],blues9[7],blues9[5])) +
+  labs(title = NULL,
+       y = 'Predicted PHS',
+       x = 'Innocuous TCF (log10)') +
+  #xlim(-4,0) +
+  theme_classic() +
+  theme(axis.text = element_text(size = axistext),
+        axis.title = element_text(size = axistitle),
+        legend.title = element_text(size = legend),
+        legend.text = element_text(size = legend),
+        legend.position = c(0.30, 0.70),
+        strip.text = element_text(size = legend, colour = 'black'))
+
+
+eff2_plot
+```
+
+# Model 3B innocuous only
+```{r}
+# model 3B
+eff3 <- ggeffects::ggeffect(mod.m2, 
+                           terms = c('log_TCFdetect'))
+
+eff3_plot <- plot(eff3, ci = FALSE) + 
+  geom_line(linewidth = 1.2, colour = dj2[3]) +
+  geom_ribbon(aes(ymin = conf.low, ymax = conf.high),
+              colour = dj2[3], fill = dj2[3], alpha = .1, 
+              linewidth = .2) +
+  labs(title = NULL,
+       y = 'Predicted PHS',
+       x = 'Innocuous TCF (log10)') +
+  #xlim(-4,0) +
+  theme_classic() +
+  theme(axis.text = element_text(size = axistext),
+        axis.title = element_text(size = axistitle),
+        )
+
+eff3_plot
+                       
+```
+
+# Model 3C noxious only
+```{r}
+# model 3C
+eff4 <- ggeffects::ggeffect(mod.m3, terms = c('log_TCFpain'))
+    
+eff4_plot <- plot(eff4) + 
+  geom_line(linewidth = 1.2, colour = dj2[5]) +
+  geom_ribbon(aes(ymin = conf.low, ymax = conf.high),
+              colour = dj2[5], fill = dj2[5], alpha = .05, 
+              linewidth = .2) +
+  labs(title = NULL,
+       y = 'Predicted PHS',
+       x = 'Noxious TCF (log10)') +
+  #xlim(-4,0) +
+  theme_classic() +
+  theme(axis.text = element_text(size = axistext),
+        axis.title = element_text(size = axistitle),
+        )
+
+eff4_plot
+```
+# Combine models and marginal effects
+```{r}
+alist <- list()
+f3a <- ggarrange(m1ROC_plot, NA, eff1_plot,
+                 ncol = 3, nrow = 1,
+                 widths = c(.8, .05, .6))
+
+f3a <- annotate_figure(f3a, top = text_grob('Model 1A: Contrast condition',
+                      size = 12, face = 'bold'))
+
+f3b <- ggarrange(m4ROC_plot, NA, eff2_plot,
+                 ncol = 3, nrow = 1,
+                 widths = c(.8, .05, .6))
+f3b <- annotate_figure(f3b, top = text_grob('Model 3A: Innoc. * nox. TCF',
+                      size = 12, face = 'bold'))
+
+f3c <- ggarrange(m2ROC_plot, NA, eff3_plot,
+                 ncol = 3, nrow = 1,
+                 widths = c(.8, .05, .6))
+f3c <- annotate_figure(f3c, top = text_grob('Model 3B: Innocuous TCF',
+                      size = 12, face = 'bold'))
+
+f3d <- ggarrange(m3ROC_plot, NA, eff4_plot,
+                 ncol = 3, nrow = 1,
+                 widths = c(.8, .05, .6))
+f3d<- annotate_figure(f3d, top = text_grob('Model 3C: Noxious TCF',
+                      size = 12, face = 'bold'))
+
+# combine all
+
+f3 <- ggarrange(f3a, f3b, f3c, f3d,
+                ncol = 1, nrow = 4,
+                labels = c('A.','B.','C.','D.'))
+f3
+
+ggsave('Figure3.png', f3, device = NULL, path = file.path('figures'), 
+       width = 5.5, height = 9, dpi = 600)
+
+```
+

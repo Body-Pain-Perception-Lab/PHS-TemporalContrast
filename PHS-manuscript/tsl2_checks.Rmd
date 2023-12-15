@@ -1,0 +1,48 @@
+---
+title: "TSL2"
+author: "Francesca Fardo"
+date: "25/02/2022"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+# Load required packages
+if (!require("pacman")) install.packages("pacman")
+pacman::p_load(dplyr)
+```
+
+# Read data
+```{r}
+filename <- "anonymised_tsl2_208.csv" 
+df <- read.csv(here::here("data", filename)) 
+```
+
+# Completed TSL2
+Identify if there are missing data points 
+
+```{r}
+# Select trials for analysis and check whether there are missing threshold data (NaN)
+NA_threshold <- df %>% 
+  filter(task == "tsl2" & trials_to_keep == 1 & df$threshold == 'NaN')
+
+# If there are NaN data, identify the participant(s) id and return the missing data
+if (empty(NA_threshold) == FALSE) {
+  sub_with_missing_data = unique(NA_threshold$exp_id)
+  warning(paste("missing threshold data for subject: ", sub_with_missing_data))
+  NA_threshold}
+
+# Select trials for analysis and check whether there are missing qualitative data (NaN)
+NA_phs <- df %>% 
+  filter(task == "tsl2" & trials_to_keep == 1 & df$phs == 'NaN')
+
+# If there are NaN data, identify the participant(s) id and return the missing data
+if (empty(NA_phs) == FALSE) {
+  sub_with_missing_data = unique(NA_phs$exp_id)
+  warning(paste("missing qualitative data for subject: ", sub_with_missing_data))
+  NA_phs
+} else { 
+  print("No missing data")
+  }
+```
