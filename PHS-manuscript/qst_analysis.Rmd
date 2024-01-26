@@ -158,6 +158,11 @@ model.qst <- lme4::glmer(phs_01~threshold_detect_coldz + threshold_detect_warmz 
                   family = 'binomial')
 
 summary(model.qst)
+
+or.qst <- tidy(model.qst, conf.int=TRUE, 
+               exponentiate=TRUE, effects="fixed")
+or.qst
+
 # save qst model
 saveRDS(model.qst, file.path(datPath, 'results','h2_qst-mod.RData'))
 ```

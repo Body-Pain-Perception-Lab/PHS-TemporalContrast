@@ -10,7 +10,7 @@ knitr::opts_chunk$set(echo = TRUE)
 
 # Load required packages
 if (!require("pacman")) install.packages("pacman")
-  pacman::p_load(DHARMa, lme4, lmerTest, tidyverse, rcompanion, Rmisc, emmeans)
+  pacman::p_load(DHARMa, broom.mixed, car, lme4, lmerTest, tidyverse, rcompanion, Rmisc, emmeans)
 ```
 
 # Read data from cortex and select data for analysis
@@ -166,11 +166,11 @@ results <- data.frame(
                             res4[[1]]$p.value, res5[[1]]$p.value, res6[[1]]$p.value,
                             res7[[1]]$p.value, res8[[1]]$p.value, res9[[1]]$p.value), 3),
   
-  OddsR = round(c(res1[[2]]$Global.statistics$OR, res2[[2]]$Global.statistics$OR, 
-                   res3[[2]]$Global.statistics$OR,res4[[2]]$Global.statistics$OR, 
-                   res5[[2]]$Global.statistics$OR, res6[[2]]$Global.statistics$OR,
-                   res7[[2]]$Global.statistics$OR, res8[[2]]$Global.statistics$OR, 
-                   res9[[2]]$Global.statistics$OR), 3)
+  CohensG = round(c(res1[[2]]$Global.statistics$g, res2[[2]]$Global.statistics$g, 
+                   res3[[2]]$Global.statistics$g,res4[[2]]$Global.statistics$g, 
+                   res5[[2]]$Global.statistics$g, res6[[2]]$Global.statistics$g,
+                   res7[[2]]$Global.statistics$g, res8[[2]]$Global.statistics$g, 
+                   res9[[2]]$Global.statistics$g), 3)
 )
 
 # Print the table of results
@@ -218,9 +218,23 @@ or.2
 anova(m.phs1, m.phs2)
 ```
  
+# Run ANOVA of interaction for model 1A
+```{r}
+# anova model - simplfy and see where this leads me
+m.phs3 <- glm(as.factor(phs) ~ baseline * instruction,
+                     data = df1,
+                     family = 'binomial')
+                     #family = poisson(link = "log"))
+summary(m.phs3)
+
+omtest <- anova(m.phs3, test = 'Chisq')
+omtest
+```
+
+
 # Post hoc analysis of regression model
 ```{r}
-phoc <- emmeans(m.phs1, ~ baseline * instruction)
+phoc <- emmeans(m.phs3, ~ baseline * instruction)
 phoc
 
 pw <- pairs(phoc, simple = 'baseline')
