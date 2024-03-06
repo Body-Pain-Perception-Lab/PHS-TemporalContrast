@@ -21,29 +21,29 @@ This repository contains all the scripts necessary to execute and generate the r
 The repository is structured in the following way:
 
 ```         
-Thermal Pain Learning/
-├── README.md             # Overview of the project.
-│
-├── data/                 # Data files used in analysis. The raw data file with fully anonymised data is anonymised_tsl2_208.csv
-│   └── ... 
-├── figures/              # Figures generated from code to the from the final manuscript.
-│   └── ...
-├── helpers/              # Helper files mostly used for generating Figure 1
-│   └── ...
-├── results/              # Results of models presented in the manuscript, as well as simulation used to create confidence intervals of Models 3A - 3D
-│   └── ... 
-│
-├── figure1_v1.m          # MATLAB script to generate Figure 1
-├── figure2_v1.Rmd        # Markdown script to generate Figure 2
-├── figure3_v2.Rmd        # Markdown script to generate Figure 3
-├── supplementary_figures.Rmd        # Markdown script to reproduce supplementary figures
-│
-├── tsl_phs_q1.Rmd        # Markdown script to reproduce results of first analysis (McNemar's and Model 1A)
-├── tsl_phs_q2.Rmd        # Markdown script to reproduce results of second analysis (Models 2A and 2B)
-├── tsl_phs_q3.Rmd        # Markdown script to reproduce results of third analysis (Models 3A-3D)
-│
-├── tsl_phs_checks.Rmd    # Markdown script to check missing trial data
-└── qst_analysis.Rmd      # Markdown script to reproduce qst analysis reported in the results section and presented in supplementary materials
+PHS-manuscript/
+  ├── README.md             # Overview of the project.
+  │
+  ├── data/                 # Data files used in analysis. The raw data file with fully anonymised data is anonymised_tsl2_208.csv
+  │   └── ... 
+  ├── figures/              # Figures generated from code to the from the final manuscript.
+  │   └── ...
+  ├── helpers/              # Helper files mostly used for generating Figure 1
+  │   └── ...
+  ├── results/              # Results of models presented in the manuscript, as well as simulation used to create confidence intervals of Models 3A - 3D
+  │   └── ... 
+  │
+  ├── figure1_v1.m          # MATLAB script to generate Figure 1
+  ├── figure2_v1.Rmd        # Markdown script to generate Figure 2
+  ├── figure3_v2.Rmd        # Markdown script to generate Figure 3
+  ├── supplementary_figures.Rmd        # Markdown script to reproduce supplementary figures
+  │
+  ├── tsl_phs_q1.Rmd        # Markdown script to reproduce results of first analysis (McNemar's and Model 1A)
+  ├── tsl_phs_q2.Rmd        # Markdown script to reproduce results of second analysis (Models 2A and 2B)
+  ├── tsl_phs_q3.Rmd        # Markdown script to reproduce results of third analysis (Models 3A-3D)
+  │
+  ├── tsl_phs_checks.Rmd    # Markdown script to check missing trial data
+  └── qst_analysis.Rmd      # Markdown script to reproduce qst analysis reported in the results section and presented in supplementary materials
 
 
 ```
