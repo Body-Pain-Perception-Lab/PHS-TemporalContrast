@@ -1,4 +1,5 @@
 %% Figure 1
+addpath('helpers/')
 % colours
 reds5 = {'#FEE5D9' '#FCAE91' '#FB6A4A' '#DE2D26' '#A50F15'}; % same colors as in RStudio
 blue5 = {'#EFF3FF' '#BDD7E7' '#6BAED6' '#3182BD' '#08519C'}; % same colors as in RStudio
