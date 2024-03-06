@@ -11,7 +11,7 @@ knitr::opts_chunk$set(echo = TRUE)
 
 # check for pacman package and install if not found
 if (!require("pacman")) install.packages("pacman")
-  pacman::p_load(boot, broom.mixed, caret, cluster, factoextra, ggeffects, 
+  pacman::p_load(boot, broom.mixed, car, caret, cluster, factoextra, ggeffects, 
                  gghalves, ggpol, ggpubr, groupdata2, lme4, lmerTest, 
                  RColorBrewer, rcompanion, 
                  reshape2, Rmisc, ROCR, rsample, tidyverse, wesanderson
@@ -139,8 +139,14 @@ m.pain <- lmer(threshold ~ as.factor(baseline) + trial_z + (1|exp_id),
                       data = tsl2 %>% filter(instruction == 'pain'))
 
 summary(m.pain, ddf = "Satterthwaite")
-```
 
+# omnibus tests on both models
+om.mdet <- Anova(m.detect)
+om.mdet
+
+om.mpain <- Anova(m.pain)
+om.mpain
+```
 # Threshold logisitic regression
 # Prep data
 ```{r}
@@ -245,6 +251,10 @@ summary(model.thr)
 or.dp2 <- tidy(model.thr, conf.int=TRUE, 
                exponentiate=TRUE, effects="fixed")
 or.dp2
+
+#omnibus test of phs model
+om.mthr <- Anova(model.thr, type = 2)
+om.mthr
 ```
 
 # Linear models with added age and gender as predictors
@@ -260,5 +270,12 @@ m.pain1 <- lmer(threshold ~ as.factor(baseline) + age + as.factor(gender) + tria
                       data = tsl2 %>% filter(instruction == 'pain'))
 
 summary(m.pain1, ddf = "Satterthwaite")
+
+# omnibus tests on both models
+om.mdet1 <- anova(m.detect1)
+om.mdet1
+
+om.mpain1 <- anova(m.pain1)
+om.mpain1
 ```
 

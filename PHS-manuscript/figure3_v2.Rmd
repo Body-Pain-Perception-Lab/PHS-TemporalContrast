@@ -72,7 +72,7 @@ if (file.exists(m1_ROC_file)){
 
 # finally, load bootstrapped data
   # location of .csv files (can get them from linked OSF page)
-Apath = '/Users/au706616/Documents/Experiments/PHS-SKULDNET/analyses/h3' 
+Apath = '/Users/au706616/Documents/Experiments/2023/PHS-SKULDNET/analyses/h3' 
 # filenames
 m1_bsfile <- file.path(Apath, 'm1-bootstrapAUCs.csv')
 m2_bsfile <- file.path(Apath, 'm2-bootstrapAUCs.csv')
@@ -394,7 +394,7 @@ eff1_plot <- plot(eff1, ci = FALSE) +
   labs(title = NULL,
        y = 'Predicted PHS',
        x = 'Contrast condition') +
-  #scale_y_continuous(breaks = c(0,.01,.02,.03,.04,.05,.06)) +
+  #ylim(0,8) +
   scale_x_continuous(breaks = c(32, 38, 44), labels = c('Low','Medium','High')) +
   theme_classic() +
   theme(axis.text = element_text(size = axistext),
@@ -402,6 +402,10 @@ eff1_plot <- plot(eff1, ci = FALSE) +
         legend.title = element_text(size = legend),
         legend.text = element_text(size = legend)
         )
+
+eff1_plot <- eff1_plot + 
+  expand_limits(y = 0)
+
 eff1_plot
 ```
 
@@ -472,11 +476,15 @@ eff4_plot <- plot(eff4) +
   labs(title = NULL,
        y = 'Predicted PHS',
        x = 'Noxious TCF (log10)') +
+  
   #xlim(-4,0) +
   theme_classic() +
   theme(axis.text = element_text(size = axistext),
         axis.title = element_text(size = axistitle),
         )
+
+eff4_plot <- eff4_plot + 
+  expand_limits(y = 0)
 
 eff4_plot
 ```
@@ -512,7 +520,7 @@ f3d<- annotate_figure(f3d, top = text_grob('Model 3C: Noxious TCF',
 
 f3 <- ggarrange(f3a, f3b, f3c, f3d,
                 ncol = 1, nrow = 4,
-                labels = c('A.','B.','C.','D.'))
+                labels = c('a.','b.','c.','d.'))
 f3
 
 ggsave('Figure3.png', f3, device = NULL, path = file.path('figures'), 

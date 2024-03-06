@@ -218,35 +218,20 @@ or.2
 anova(m.phs1, m.phs2)
 ```
  
-# Run ANOVA of interaction for model 1A
+# Omnibus test of mixed logistic regression model
 ```{r}
-# anova model - simplfy and see where this leads me
-m.phs3 <- glm(as.factor(phs) ~ baseline * instruction,
-                     data = df1,
-                     family = 'binomial')
-                     #family = poisson(link = "log"))
-summary(m.phs3)
-
-omtest <- anova(m.phs3, test = 'Chisq')
+omtest <- Anova(m.phs1, type = 2)
 omtest
 ```
 
 
 # Post hoc analysis of regression model
 ```{r}
-phoc <- emmeans(m.phs3, ~ baseline * instruction)
+phoc <- emmeans(m.phs1, ~ baseline * instruction)
 phoc
 
 pw <- pairs(phoc, simple = 'baseline')
 pw
 
-# effectsizes are inverselog OR, calculate OR for each effect
-# not sure where to access the stat in the data-frame so do this manually for now (not ideal)
-inn3238 <- inv.logit(-.573)
-inn3244 <- inv.logit(-1.62)
-inn3844 <- inv.logit(-1.07)
-nox3238 <- inv.logit(.364)
-nox3244 <- inv.logit(.759)
-nox3844 <- inv.logit(.394)
 ```
 

@@ -109,7 +109,7 @@ p1 <- ggplot(data = df_phs_fig,
   scale_x_continuous(breaks = c(44,38,32), labels=c("High", "Medium", "Low"), ) +#, limits = c(44,38,32)) +
   ylim(0,60)
 
-p1 <- annotate_figure(p1, top = text_grob('A. Effect of Contrast on PHS',
+p1 <- annotate_figure(p1, top = text_grob('a. Effect of Contrast on PHS',
                       size = 11, face = 'bold'))
 
 p1
@@ -186,7 +186,7 @@ p3 <- ggplot(data = plot_df,
   # Add individual points
   geom_point(aes(x = xj), shape = 21, size = .8, alpha = .6,
              position = position_nudge(x = nudge3)) +
-  facet_wrap(~instruction, scales = 'free') +
+  facet_wrap(~instruction) +
   geom_boxplot(
     data = plot_df %>% 
       dplyr::filter(baseline == 1), outlier.color = NA,
@@ -213,6 +213,7 @@ p3 <- ggplot(data = plot_df,
   scale_fill_manual(labels = c("Innocuous", "Noxious"), values=c(blues9[2],blues9[3])) +
   labs(y = "TSL Threshold (ºC)", x = NULL) +
   theme_classic() +
+  ylim(0, 32) +
   theme(legend.position = "none",
         panel.grid.minor = element_blank(), # text size for labels on the x-axis
         strip.text = element_text(size = 10), # text size and color on facet_wrap 
@@ -223,7 +224,7 @@ p3 <- ggplot(data = plot_df,
 
 
 # add title
-p3 <- annotate_figure(p3, top = text_grob('B. Individual TSL Thresholds',
+p3 <- annotate_figure(p3, top = text_grob('b. Individual TSL Thresholds',
                       size = 11, face = 'bold'))
 
 p3
@@ -326,7 +327,7 @@ p4 <- ggplot(data = plot_con,
   scale_y_continuous(labels=scaleFUN) +
   labs(y = "Contrast (Tmax - Tmin)/50",
        x = "Contrast Condition") +
-  #ylim(0,0.55) +
+  ylim(0,0.8) +
   theme_classic() +
   theme(legend.position = 'bottom',
         legend.title = element_blank(),
@@ -339,7 +340,7 @@ p4 <- ggplot(data = plot_con,
         )
 
 # add title
-p4 <- annotate_figure(p4, top = text_grob('C. Thermal Contrast by PHS',
+p4 <- annotate_figure(p4, top = text_grob('c. Thermal Contrast by PHS',
                       size = 11, face = 'bold'))
 p4
 ggsave(here::here("figures", "F2_panel3.png"), plot = p4, 

@@ -10,7 +10,7 @@ knitr::opts_chunk$set(echo = TRUE)
 
 ##### Libraries #####
 if (!require("pacman")) install.packages("pacman")
-  pacman::p_load(boot, broom.mixed, caret, ggeffects, 
+  pacman::p_load(boot, broom.mixed, car, caret, ggeffects, 
                  gghalves, ggpol, ggpubr, groupdata2, lme4, lmerTest, 
                  RColorBrewer, rcompanion,
                  reshape2, Rmisc, ROCR, rsample, tidyverse, wesanderson
@@ -267,6 +267,10 @@ or.1 <- tidy(mod.1, conf.int=TRUE,
 or.1
 # save model
 saveRDS(mod.1, file.path('results','h3_mod1.RData'))
+
+# omnibus test
+om.mod1 <- Anova(mod.1, type = 2)
+om.mod1
 ```
 # Model 2: PHS~TCSdetect (log of)
 ```{r}
@@ -283,7 +287,12 @@ or.2 <- tidy(mod.2, conf.int=TRUE,
 or.2
 # save model
 saveRDS(mod.2, file.path('results','h3_mod2.RData'))
+
+# omnibus test
+om.mod2<- Anova(mod.2, type = 2)
+om.mod2
 ```
+
 # Model 3: phs~TCFpain (log of)
 ```{r}
 mod.3 <- lme4::glmer(phs_01 ~ log_TCFpain + (1|subject),
@@ -297,13 +306,18 @@ or.3 <- tidy(mod.3, conf.int=TRUE,
 or.3
 # save model
 saveRDS(mod.3, file.path('results','h3_mod3.RData'))
+
+# omnibus test
+om.mod3 <- Anova(mod.3, type = 2)
+om.mod3
 ```
 
 # Model 4: phs~TCFdetect * TCFpain (log of)
 ```{r}
 mod.4 <- lme4::glmer(phs_01 ~ log_TCFdetect * log_TCFpain + (1|subject),
                 data = df_conN,
-                family = 'binomial') #, weights = train_dp$weights)
+                family = 'binomial') #, weights = train_dp$weights
+
 summary(mod.4)
 
 # calculating odds ratios
@@ -312,8 +326,13 @@ or.4 <- tidy(mod.4, conf.int=TRUE,
 or.4
 # save model
 saveRDS(mod.4, file.path('results','h3_mod4.RData'))
+
+# omnibus test
+om.mod4 <- Anova(mod.4, type = 2)
+om.mod4
 ```
 
+## MODEL 5 & 6 NOT REPORTED IN MANUSCRIPT
 # Model 5: phs~TCFdetect * nbackTCF (log of)
 ```{r}
 mod.5 <- lme4::glmer(phs_01 ~ log_TCFdetect + log_nback + (1|subject),
