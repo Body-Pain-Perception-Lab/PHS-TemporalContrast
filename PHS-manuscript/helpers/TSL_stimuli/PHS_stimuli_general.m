@@ -14,23 +14,23 @@ animation_fname = 'TSL_example.gif';
 [A,map] = rgb2ind(frame2im(getframe),256);
 imwrite(A,map,animation_fname,'LoopCount',65535,'DelayTime',0.01);
 
-x0 = 0; % start timeline from 0
+x0 = 0.5; % start timeline from 0
 rgb_warm = [0.8500 0.3250 0.0980];
 rgb_cold = [0 0.4470 0.7410];
 gray = [0.5 0.5 0.5];
 
 % segment 1: WDT 1
-t1 = 32; t2 = 42; int = 0.1; beep = 0; button_press = 1; bp_color = rgb_warm;
+t1 = 32; t2 = 41.2; int = 0.1; beep = 0; button_press = 0; bp_color = rgb_cold;
 plot_animatedline(t1, t2, int, rgb_warm, x0, beep, button_press, bp_color, animation_fname)
 
 % segment 2: return to baseline
 xint = x0 + abs(t1-t2);
-t1 = 42; t2 = 32; beep = 1; button_press = 0; bp_color = 0;
+t1 = 41.2; t2 = 32; beep = 1; button_press = 0; bp_color = 0;
 plot_animatedline(t1, t2, int, rgb_warm, xint, beep, button_press, bp_color, animation_fname)
 
 % segment 3: CDT 1
-xint = xint + abs(t1-t2); beep = 0; button_press = 1; bp_color = rgb_warm;
-t1 = 32; t2 = 20; x0 = abs(t1-t2) + x0;
+xint = xint + abs(t1-t2); beep = 0; button_press = 1; bp_color = rgb_cold;
+t1 = 32; t2 = 22.3; x0 = abs(t1-t2) + x0;
 plot_animatedline(t1, t2, int, rgb_cold, xint, beep, button_press, bp_color, animation_fname)
 
 % segment 4: return to baseline
@@ -53,7 +53,7 @@ function plot_animatedline(t1,t2,int, color, x0, beep, button_press, bp_color, a
     stimuli = animatedline('Color', color, 'LineWidth', 3);
     
     % define plotting options
-    set(gca, 'XLim', [0 45], 'YLim', [0 50], 'FontSize',12) % X-axis and Y-axis limits
+    set(gca, 'XLim', [0 40], 'YLim', [0 50], 'FontSize',12) % X-axis and Y-axis limits
     yl = yline(32,'--','baseline', 'LineWidth', 2, 'FontSize',12); % baseline line
     yl.Color = [0.5 0.5 0.5]; % color of the baseline line
     ylabel(['Temperature (' char(0176) 'C)'], 'FontSize',14)
