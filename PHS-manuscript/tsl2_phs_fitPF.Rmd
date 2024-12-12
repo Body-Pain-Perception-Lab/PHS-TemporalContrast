@@ -109,4 +109,19 @@ fit$diagnostic_summary()
 fit$summary(c('mus_phs','sigmas_phs'))
 mcmc_trace(fit$draws(variables = c('mus_phs','sigmas_phs'))) #hairy caterpillars
 ```
+```{r}
+group_draws = as_draws_df(fit$draws(c("mus_phs","sigmas_phs")))
 
+#get 200 random ids for the draws we select to plot.
+draw_id = sample(1:4000,200)
+
+# make parameter data-frame
+params = group_draws %>% select(-contains(".")) %>% 
+  mutate(draw = 1:n()) %>% 
+  filter(draw %in% draw_id) %>% 
+  mutate(x = list(df_con$TCF*100)) %>% 
+  unnest(x) %>% 
+  rowwise() %>% 
+  mutate(p = prob_func(x,exp(`mus_phs[1]`), exp(`mus_phs[2]`),
+                       inv_logit_scaled(`mus_phs[3]`)/2,inv_logit_scaled(`mus_phs[4]`)/2))
+```
