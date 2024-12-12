@@ -93,7 +93,7 @@ stanHmodel1 <- cmdstanr::cmdstan_model('phs-hierarchical_p1.stan') #initiate mod
 
 # run
 fit = stanHmodel1$sample(data = list(N = nrow(df_con), 
-                                    tcf = df_con$TCF,
+                                    tcf = (df_con$TCF)*100,
                                     phs = df_con$phs_01,
                                     S = length(unique(df_con$subject)),
                                     S_id = df_con$subject),
@@ -106,7 +106,7 @@ fit = stanHmodel1$sample(data = list(N = nrow(df_con),
                         init = 0)
 
 fit$diagnostic_summary()
-fit$summary()
+fit$summary(c('mus_phs','sigmas_phs'))
 mcmc_trace(fit$draws(variables = c('mus_phs','sigmas_phs'))) #hairy caterpillars
 ```
 
