@@ -156,13 +156,43 @@ params_phs = params_phs %>%
 
 ```{r}
 params_phs %>% 
-  filter(as.numeric(id)>=20 & as.numeric(id)<40) %>% 
+  filter(as.numeric(id)>=160) %>% 
   ggplot()+
-  geom_point(data = df_con %>% filter(as.numeric(id)>=20 & as.numeric(id)<40),
+  geom_point(data = df_con %>% filter(as.numeric(id)>=160),
              aes(x = TCF*100, y = phs_01))+
   geom_line(aes(x,p,group=draw),alpha=.5)+
   facet_wrap(~id)+
   theme_classic()
+```
+
+# group posterior draws
+```{r}
+group_draws = as_draws_df(fit$draws(c("mus_phs","sigmas_phs")))
+
+#get 200 random ids for the draws we select to plot.
+draw_id = sample(1:4000,100)
+
+# make parameter data-frame
+params = group_draws %>% select(-contains(".")) %>% 
+  mutate(draw = 1:n()) %>% 
+  filter(draw %in% draw_id) %>% 
+  mutate(x = list(seq(min(df_con$TCF),max(df_con$TCF),length.out = 50)*100)) %>% 
+  unnest(x) %>% 
+  rowwise() %>% 
+  mutate(p = prob_func(x,exp(`mus_phs[1]`), exp(`mus_phs[2]`),
+                       inv_logit_scaled(`mus_phs[3]`)/2,inv_logit_scaled(`mus_phs[4]`)/2))
+
+# plotting group
+df_con %>% group_by(TCF) %>% 
+  summarise(med = median(phs_01), se = sd(phs_01)/sqrt(n())) %>% 
+  ggplot(aes(x = TCF*100, y = med))+
+  geom_point()+
+  # model data
+  geom_line(data = params, aes(x = x, y = p, group = draw), col = "grey70", alpha = 0.5)+
+  # simulated data
+  #geom_smooth(col = 'black')+
+  #geom_pointrange(aes(ymin = mean-2*se, ymax = mean+2*se))+
+  theme_bw()
 ```
 
 
