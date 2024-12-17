@@ -119,7 +119,7 @@ model {
   sigmas_phs[2] ~ normal(0,1);
 
   mus_phs[3] ~ normal(-4,1); //guess
-  sigmas_phs[3] ~ normal(0,1.5);
+  sigmas_phs[3] ~ normal(1,1.5);
 
   mus_phs[4] ~ normal(0,1); //lapse
   sigmas_phs[4] ~ normal(0,1);

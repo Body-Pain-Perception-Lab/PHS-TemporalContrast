@@ -37,21 +37,31 @@ if (file.exists(sum_file)){
 ```
 
 Functions at the top
-# Zscore function
 ```{r}
+# Zscore function
 calc_z <- function (value) {
   z_score <- (value - mean(value))/sd(value)
 }
-```
 
 # contrast function
-Calculating contrast
-TCF - thermal contrast function (developed by FF)
-```{r}
+# Calculating contrast
+# TCF - thermal contrast function (developed by FF)
+
 # the TCF assumes that maximum possible TSL temperature is 50deg
 TCF <- function (Tmax, Tmin) {
   top_temp = 50
   contrast <- (Tmax - Tmin)/top_temp
+}
+
+#logistic function
+prob_func = function(x,a,b,g,l){
+  #a = intercept, b = slope (lower limit = 0), x = data
+  #l = lapse rate[0 - 0.5], g = guess rate[0 - 0.5]
+  
+  prob_func = g + (1-g-l)*(brms::inv_logit_scaled(b*(x-a)))
+  #prob_func = 0.5+0.5*erf((x-a)/(sqrt(2)*b))
+  
+  return(prob_func)
 }
 ```
 
@@ -109,19 +119,50 @@ fit$diagnostic_summary()
 fit$summary(c('mus_phs','sigmas_phs'))
 mcmc_trace(fit$draws(variables = c('mus_phs','sigmas_phs'))) #hairy caterpillars
 ```
+
+# plot individual subject fits
 ```{r}
-group_draws = as_draws_df(fit$draws(c("mus_phs","sigmas_phs")))
+subject_draws = as_draws_df(fit$draws(c("mus_phs","sigmas_phs","difs_phs"))) %>% 
+                select(-contains("."))
 
 #get 200 random ids for the draws we select to plot.
-draw_id = sample(1:4000,200)
+draw_id = sample(1:4000,20)
 
-# make parameter data-frame
-params = group_draws %>% select(-contains(".")) %>% 
+params = subject_draws %>% 
   mutate(draw = 1:n()) %>% 
   filter(draw %in% draw_id) %>% 
-  mutate(x = list(df_con$TCF*100)) %>% 
+  pivot_longer(
+    cols = starts_with("difs"),
+    names_to = c("outcome","parameters","id"),
+    names_pattern = "difs_([a-z]+)\\[(\\d+),(\\d+)\\]"
+  ) 
+
+# create dataframe for each outcome variable
+params_phs = params %>%   
+  filter(outcome == 'phs') %>% 
+  pivot_wider(names_from = "parameters", values_from = value) %>% 
+  dplyr::rename("a" = "1", "b" = "2", "g" = "3", "l" = "4") %>% 
+  mutate(a_phs = exp(`mus_phs[1]` + a * `sigmas_phs[1]`),
+         b_phs = exp(`mus_phs[2]` + b * `sigmas_phs[2]`),
+         g_phs = inv_logit_scaled(`mus_phs[3]` + g * `sigmas_phs[3]`)/2,
+         l_phs = inv_logit_scaled(`mus_phs[4]` + l * `sigmas_phs[4]`)/2)
+
+params_phs = params_phs %>% 
+  mutate(x = list(seq(min(df_con$TCF),max(df_con$TCF),length.out = 50)*100)) %>% 
   unnest(x) %>% 
   rowwise() %>% 
-  mutate(p = prob_func(x,exp(`mus_phs[1]`), exp(`mus_phs[2]`),
-                       inv_logit_scaled(`mus_phs[3]`)/2,inv_logit_scaled(`mus_phs[4]`)/2))
+  mutate(p = prob_func(x,a_phs,b_phs,g_phs,l_phs))
 ```
+
+```{r}
+params_phs %>% 
+  filter(as.numeric(id)>=20 & as.numeric(id)<40) %>% 
+  ggplot()+
+  geom_point(data = df_con %>% filter(as.numeric(id)>=20 & as.numeric(id)<40),
+             aes(x = TCF*100, y = phs_01))+
+  geom_line(aes(x,p,group=draw),alpha=.5)+
+  facet_wrap(~id)+
+  theme_classic()
+```
+
+
