@@ -176,19 +176,25 @@ draw_id = sample(1:4000,100)
 params = group_draws %>% select(-contains(".")) %>% 
   mutate(draw = 1:n()) %>% 
   filter(draw %in% draw_id) %>% 
-  mutate(x = list(seq(min(df_con$TCF),max(df_con$TCF),length.out = 50)*100)) %>% 
+  mutate(x = list(seq(min(df_con$TCF),max(df_con$TCF),length.out = 100)*100)) %>% 
   unnest(x) %>% 
   rowwise() %>% 
   mutate(p = prob_func(x,exp(`mus_phs[1]`), exp(`mus_phs[2]`),
                        inv_logit_scaled(`mus_phs[3]`)/2,inv_logit_scaled(`mus_phs[4]`)/2))
 
 # plotting group
-df_con %>% group_by(TCF) %>% 
-  summarise(med = median(phs_01), se = sd(phs_01)/sqrt(n())) %>% 
-  ggplot(aes(x = TCF*100, y = med))+
+df_con %>% 
+  mutate(ints = cut(TCF*100, breaks = 50)) %>% 
+  group_by(ints) %>% 
+  mutate(ints = as.numeric(ints)) %>% 
+  summarise(med = mean(phs_01), se = sd(phs_01)/sqrt(n())) %>% 
+  ggplot(aes(x = ints, y = med))+
   geom_point()+
+  theme_bw()
   # model data
-  geom_line(data = params, aes(x = x, y = p, group = draw), col = "grey70", alpha = 0.5)+
+params %>% 
+  ggplot()+
+  geom_line(aes(x = x, y = p, group = draw), col = "grey70", alpha = 0.5)+
   # simulated data
   #geom_smooth(col = 'black')+
   #geom_pointrange(aes(ymin = mean-2*se, ymax = mean+2*se))+
